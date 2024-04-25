@@ -31,7 +31,7 @@ $$
 
 
 
-![rics-v cpu setup](/Users/scc/Documents/notes_for_latest/zkp/rics-v cpu setup.png)
+![rics-v cpu setup](./rics-v cpu setup.png)
 
 > **CPU Step Transition:**
 >
@@ -64,7 +64,7 @@ ADD和ADDI由相同的查找表表示，因为它们只在第二个操作数是�
 
 所有查找查询和条目的跟踪将被发送到Lasso。，Lasso要求查询被分割成chunk，这些块被输入到不同的子表中。提供者专业人士 将这些块作为建议，对于一些小的常数c是c，因此大约有W/c或2W/c位长，这取决于z的结构。约束系统必须验证这些 chunk正确地构成z，但**不需要执行任何范围检查**，因为**Lasso算法本身后来隐式地在块上执行这些检查**。
 
-![jolt-flowers](/Users/scc/Documents/notes_for_latest/zkp/figure2.png)
+![jolt-flowers](./figure2.png)
 
 machine state transtiation 包含读取和写入三个概念上独立的内存部分：
 
@@ -88,6 +88,6 @@ machine state transtiation 包含读取和写入三个概念上独立的内存�
 
 
 
-![lasso cost](/Users/scc/Documents/notes_for_latest/zkp/lasso cost.png)
+![lasso cost](./lasso cost.png)
 
-![image-20240424154352944](/Users/scc/Documents/notes_for_latest/zkp/base cost.png)
+![image-20240424154352944](./base cost.png)

@@ -36,7 +36,7 @@ halo2电路书写形式与其他不同（如bellman），采用**`table`**或**`
 
 
 
-![image-20240313100803059](/Users/scc/Documents/notes_for_latest/zkp/halo2_circuit.png)
+![image-20240313100803059](./halo2_circuit.png)
 
 如图构造了一个简单的电路描述，包含两个约束
 

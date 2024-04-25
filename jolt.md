@@ -108,11 +108,11 @@ Jolt VM 职责：
 * 重复执行其指令集架构的 fetch-decode-execute。
 * 对随机存取存储器 (RAM) 执行读取和写入操作。
 
-![jolt-flowers](/Users/scc/Documents/notes_for_latest/zkp/figure2.png)  
+![jolt-flowers](./figure2.png)  
 
 Jolt 代码库的组织方式类似，但将读写存储器（包括寄存器和 RAM）与程序代码（又名字节码，只读）分开，总共有四个组件：
 
-![jolt deocde](/Users/scc/Documents/notes_for_latest/zkp/fetch_decode_execute.png)
+![jolt deocde](./fetch_decode_execute.png)
 
 
 
@@ -120,15 +120,15 @@ Jolt 代码库的组织方式类似，但将读写存储器（包括寄存器和
 
   * Jolt 使用离线内存检查来证明寄存器和 RAM 的有效性。与我们在其他模块中使用离线内存检查不同，寄存器和 `RAM 是可写内存`。
 
-  * 出于离线内存检查的目的，Jolt 将`寄存器、程序输入/输出`和 `RAM` 视为占用一个`统一的地址空间`。重新映射的地址空间布局如下:![memory layout](/Users/scc/Documents/notes_for_latest/zkp/memory_layout.png)
+  * 出于离线内存检查的目的，Jolt 将`寄存器、程序输入/输出`和 `RAM` 视为占用一个`统一的地址空间`。重新映射的地址空间布局如下:![memory layout](./memory_layout.png)
 
   * 如上所示的零填充是为了让RAM从一个二的幂偏移量开始。如图所示，witness 的大小会随着程序执行过程中地址最高的内存而变化。除了在“程序I/O”和“RAM”部分之间的零填充之外，witness的末尾还会填充到二的幂。
 
   * Program IO:
 
-    * 程序输入和输出（以及恐慌位，指示程序是否恐慌）与 RAM 位于同一内存地址空间中。程序输入在初始化时填充指定的输入空间, 验证者可以自行有效地计算该初始内存状态的 MLE（即与 IO 大小成比例的时间，而不是总内存大小）。![init_state](/Users/scc/Documents/notes_for_latest/zkp/initial_memory_state.png)
+    * 程序输入和输出（以及恐慌位，指示程序是否恐慌）与 RAM 位于同一内存地址空间中。程序输入在初始化时填充指定的输入空间, 验证者可以自行有效地计算该初始内存状态的 MLE（即与 IO 大小成比例的时间，而不是总内存大小）。![init_state](./initial_memory_state.png)
 
-    * 另一方面，验证程序无法独自计算最终内存状态的MLE——尽管程序 I/O 已知于验证程序，但最终内存状态包含在程序执行过程中写入寄存器/RAM 的值，这些值验证程序并不知道。然而，验证程序能够计算程序 I/O 值的 MLE（两侧填充零） - 如下所示为 v_io。如果证明者诚实，那么最终的内存状态（如下面的 v_final）应在与程序 I/O 对应的索引处与 v_io 相符。![final_memory_state](/Users/scc/Documents/notes_for_latest/zkp/final_memory_state.png) 为了强制执行此操作，调用 sumcheck 协议对 v_final 和 v_io 之间的差异执行“零检查”。![program_check](/Users/scc/Documents/notes_for_latest/zkp/program_output_sumcheck.png)
+    * 另一方面，验证程序无法独自计算最终内存状态的MLE——尽管程序 I/O 已知于验证程序，但最终内存状态包含在程序执行过程中写入寄存器/RAM 的值，这些值验证程序并不知道。然而，验证程序能够计算程序 I/O 值的 MLE（两侧填充零） - 如下所示为 v_io。如果证明者诚实，那么最终的内存状态（如下面的 v_final）应在与程序 I/O 对应的索引处与 v_io 相符。![final_memory_state](./final_memory_state.png) 为了强制执行此操作，调用 sumcheck 协议对 v_final 和 v_io 之间的差异执行“零检查”。![program_check](./program_output_sumcheck.png)
 
       这也激励了在“程序I/O”和“RAM”部分之间进行零填充。零填充确保input_start和ram_witness_offset都是2的幂，这使得验证器更容易计算v_init和v_io的MLE。
 
@@ -196,9 +196,9 @@ Jolt 代码库的组织方式类似，但将读写存储器（包括寄存器和
     }
     ```
 
-    RISC-V 规范中描述了寄存器rd rs1 rs2 imm.。预处理的字节码充当（只读）“内存”，我们在其上执行离线内存检查。![byte_code](/Users/scc/Documents/notes_for_latest/zkp/bytecode_trace.png)
+    RISC-V 规范中描述了寄存器rd rs1 rs2 imm.。预处理的字节码充当（只读）“内存”，我们在其上执行离线内存检查。![byte_code](./bytecode_trace.png)
 
-  * Bitflags 给定指令的位标志是其电路标志和指令标志的串联。这种串联是由 R1CS 约束强制执行的。![bitflags](/Users/scc/Documents/notes_for_latest/zkp/bitflags.png)
+  * Bitflags 给定指令的位标志是其电路标志和指令标志的串联。这种串联是由 R1CS 约束强制执行的。![bitflags](./bitflags.png)
 
 
 

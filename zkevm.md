@@ -11,13 +11,13 @@ https://github.com/privacy-scaling-explorations/zkevm-circuits.git
 
 
 
-![示意图](/Users/scc/Documents/notes_for_latest/zkp/zkevm circuit.jpg)
+![示意图](./zkevm circuit.jpg)
 
 
 
 官方电路示意图
 
-![zkevm](/Users/scc/Documents/notes_for_latest/zkp/architecture_diagram2.png)
+![zkevm](./architecture_diagram2.png)
 
 
 
