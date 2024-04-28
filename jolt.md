@@ -2,6 +2,8 @@
 
  https://github.com/a16z/jolt 
 
+[FAQ on Jolt’s initial implementation - a16z crypto](https://a16zcrypto.com/posts/article/faqs-on-jolts-initial-implementation/#section--1)
+
 Jolt （Just *O*ne *L*ookup *T*able）是一种新的前端，由 Lasso 使用超大的查找表的能力解锁。 Jolt 的目标是虚拟机/CPU 抽象，也称为指令集架构，支持这种抽象的 SNARK 称为 zkVM。 仅需要 50-100 个 LOC 即可实现新的 VM 指令。
 
 Jolt 代码库目前针对大多数高级语言编译器支持的 RISC-V 指令集，但该代码旨在可扩展并可供任何 ISA 使用。
