@@ -296,3 +296,74 @@ verify,prove的底层与 hyrax有关
 ```
 
 而 `C::branch_verify` `C::branch_prove`  源码则在 jolt-core/src/poly/commitment/hyrax.rs 中 
+
+
+
+实际的verify。 
+
+```rust
+pub fn verify(
+        &self,
+        pedersen_generators: &PedersenGenerators<G>,
+        transcript: &mut ProofTranscript,
+        opening_point: &[G::ScalarField], // point at which the polynomial is evaluated
+        opening: &G::ScalarField,         // evaluation \widetilde{Z}(r)
+        commitment: &HyraxCommitment<G>,
+        ratio: usize,
+    ) -> Result<(), ProofVerifyError> {
+        transcript.append_protocol_name(Self::protocol_name());
+
+        // compute L and R
+        let (L_size, R_size) = matrix_dimensions(opening_point.len(), ratio);
+        let eq: EqPolynomial<_> = EqPolynomial::new(opening_point.to_vec());
+        let (L, R) = eq.compute_factored_evals(L_size);
+
+        // Verifier-derived commitment to u * a = \prod Com(u_j)^{a_j}
+        let homomorphically_derived_commitment: G =
+            VariableBaseMSM::msm(&G::normalize_batch(&commitment.row_commitments), &L).unwrap();
+
+        let product_commitment = VariableBaseMSM::msm(
+            &G::normalize_batch(&pedersen_generators.generators[..R_size]),
+            &self.vector_matrix_product,
+        )
+        .unwrap();
+
+        let dot_product = compute_dotproduct(&self.vector_matrix_product, &R);
+
+        if (homomorphically_derived_commitment == product_commitment) && (dot_product == *opening) {
+            Ok(())
+        } else {
+            Err(ProofVerifyError::InternalError)
+        }
+    }
+```
+
+实际的prove
+
+```rust
+#[tracing::instrument(skip_all, name = "HyraxOpeningProof::prove")]
+    pub fn prove(
+        poly: &DensePolynomial<G::ScalarField>,
+        opening_point: &[G::ScalarField], // point at which the polynomial is evaluated
+        ratio: usize,
+        transcript: &mut ProofTranscript,
+    ) -> HyraxOpeningProof<G> {
+        transcript.append_protocol_name(Self::protocol_name());
+
+        // assert vectors are of the right size
+        assert_eq!(poly.get_num_vars(), opening_point.len());
+
+        // compute the L and R vectors
+        let (L_size, _R_size) = matrix_dimensions(poly.get_num_vars(), ratio);
+        let eq = EqPolynomial::new(opening_point.to_vec());
+        let (L, _R) = eq.compute_factored_evals(L_size);
+
+        // compute vector-matrix product between L and Z viewed as a matrix
+        let vector_matrix_product = Self::vector_matrix_product(poly, &L, ratio);
+
+        HyraxOpeningProof {
+            vector_matrix_product,
+        }
+    }
+```
+
