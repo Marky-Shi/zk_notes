@@ -98,7 +98,7 @@ drwxr-xr-x@ 6 scc  staff    192  4 18 13:24 target
     
 
     ```rust
-    #[jolt::provable(max_input_size = 10000, max_output_size = 10000)]10
+    #[jolt::provable(max_input_size = 10000, max_output_size = 10000)]
     ```
 
   * 有时，在安装工具链后，Jolt仍然尝试使用标准库进行编译，这将失败并出现大量错误，即某些项目（例如结果）被引用且不可用。在安装工具链之前尝试运行 jolt 时，通常会发生这种情况。要解决此问题，请尝试重新运行 jolt install-toolchain，重新启动终端，然后删除 rust 目标目录以及 /tmp 下以 jolt 开头的任何文件。

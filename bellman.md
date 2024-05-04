@@ -1,7 +1,5 @@
 https://github.com/zkcrypto/bellman.git
 
-https://learnblockchain.cn/article/1662
-
 实现了Groth16算法
 
 总体流程大致可以分为以下几个步骤：
