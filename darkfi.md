@@ -22,8 +22,6 @@ make zkas //only zk other modules doesn't
 
 darkfi zk底层则是halo2实现的。
 
-
-
 ```shell
 ~/code/rustcode/darkfi ±master » ./zkas proof/opcodes.zk
 Wrote output to proof/opcodes.zk.bin

@@ -2,9 +2,7 @@
 
 [plonk](https://medium.com/coinmonks/under-the-hood-of-zksnarks-plonk-protocol-part-2-ee00d6accb4d) 
 
-https://learnblockchain.cn/article/2180
-
-属于SNARK 的零只是证明系统之一
+属于SNARK 的零知识证明系统之一
 
 `PLONK 具有通用且可更新的可信设置等优势。在 Groth16 中，需要特定于电路（或特定于任务，对于那些不熟悉该术语的人）的可信设置，而在 Plonk 中，相同的设置可以重复用于任何电路。“可更新”一词是指任何人都可以为设置添加随机性，从而增强对其完整性的信任。`
 
@@ -57,14 +55,12 @@ Plonk 利用 KZG（Kate、Zaverucha、Goldberg）方案进行验证。
 
 
 
-
-
 ### Plonk 和 groth16 的区别
 
 是两种用于零知识证明的算法，它们在构建约束、证明生成和验证阶段上有一些区别。
 
 - 约束构建：
-  - Plonk 和 groth16  都将问题约束成一组数学表达式，但是
+  - Plonk 和 groth16  都将问题约束成一组数学表达式，但
     - **PLONK** 使用门约束和线约束，将问题描述等价于约束描述。
     - Groth16  使用非通用可信设置，构建一个配对验证等式
 - 证明生成
