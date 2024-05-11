@@ -69,10 +69,78 @@ halo2电路书写形式与其他不同（如bellman），采用**`table`**或**`
 3. Instructions：每一个Chip都有指令（Instruction）。通过指令的调用，将Chip的部分或者全部功能加入电路中。
 4. Layouter：将Chip添加到一个电路上需要布局。Layouter就是用来实现布局。
    - Layouter本身存在层级关系，所以Layouter的接口定义了 `get_root` `push_namespace` `pop_namespace` `namespace`等方法，核心逻辑在其他三个函数：
-     - `assign_region`: 获取一个region，在其之上进行各种`assignment` (任务)，定义在`RegionLayouter`接口中。
+     - `assign_region`: 获取一个region，在其之上进行各种`assignment` (电路赋值)，定义在`RegionLayouter`接口中。
      - `assign_table` : 获取一个table，并设置table，接口定义在`TableLayouter`接口中。
      - `constrain_instance`: 限制一个`Cell` 和`instance`列中的某个`Cell`一致。
 5. **Assginment** ：Assignment是一个电路“赋值”的接口。电路的实际赋值
+
+> 关于region的一些信息：
+>
+> 在 halo2 中我们不会直接约束一整个电路的行和列，而是将整个电路划分为由相邻的行和列组成的 region，在 region 中可以采用相对偏移(relative offsets)的方式**访问 Cell**。 在一个 region 中，我们只关心 cells 之间的**相对关系**。
+>
+> 如果两个约束没有关系，或者也不关心两个 “cell” 之间如何相互作用的话，那么就应该将它们分别定义在 2 个不同的 regions 中，如此就可以将控制权交给halo2默认的**layouter**，让 layouter 去优化整体电路 region 分布，比如合并不同的region到一行来减小电路的规模。
+>
+> layouter 作用在 assignment （电路赋值）期间，即当 Witness 去填充整个 Circuit table 时使用。实际中，**layouter一般不会一下子填满整个 table， 而是每次都会创建一个 region，并在其包含的单元格中填入相应的witness值。**
+>
+> 为了保证每个 gate 能当访问到其所需的所有单元格，一般而言对 gate 所在的 region 进行电路布局时，region 需遵循如下规则： **region 不需要与 custom gate 具有相同的形状，但 region 必须覆盖所有相关的 custom gate**
+
+
+
+### Hlao2 中的电路布局 circuit layout
+
+1. TracingFloorPlanner 可用于检测电路，并准确确定在特定注册机或证明运行期间发生的情况。这对于识别意外的非确定性或电路变化非常有用。
+2. V1
+   1. 没有colunm 优化，电路配置完全由开发者自定。
+   2. 双通道布局器用于在分配之前region。
+   3. Region 为矩形，以他们分配的cell 为界。
+   4. region 采用贪婪的先拟合策略进行布局，按region的 `advice area`（建议列数 * 行数）对区域进行排序。
+3. SimpleFloorPlanner，目前常用的电路布局器，旨在反映电路的业务逻辑，它使用单通道
+   布局器，它为该区域中使用的每一列找到第一个空行并获取其所需的最多的单元格。它尝试尽可能多地合并相关的 regions 以使用**更少的行**。  
+
+一般而言，我们需要在电路布局做如下权衡：
+
+- 减少电路使用的空间 (space) ，因为行数越多，fft 操作越多，Prove 过程就越慢
+- 增加电路的列数， *Prover* 需要 commit 每个列，更多的列数，意味着更多的 `commitments`，也就意味着更大的 `proof size`
+
+
+
+### Lookup
+
+在Halo2中，lookup是一种重要的技术，它允许在**任意集合中进行查找**，而且比Plookup更简单。
+
+Halo2的lookup技术可以被看作是一种**在变量之间强制执行关系的方法**，其中关系是通过`table`来表示的。这种查找技术允许**在固定或可变的表格中查找值**。这意味着可以在固定的表格中进行范围证明，或者在可变的表格中（包括建议列）验证一个电路的输入是否属于另一个电路的输出。
+
+lookup 必须使用 `complex_selector`，因为 Halo2 可以根据这个标记知道这种 Selecotr 列不需要优化，而普通的 Selector 则可能会被 Layouter 进行合并等优化操作。
+
+[example code]([halo2_demo/src/examples/range_lookup.rs at master · Chengcheng-S/halo2_demo (github.com)](https://github.com/Chengcheng-S/halo2_demo/blob/master/src/examples/range_lookup.rs#L21))
+
+```rust
+pub fn configure(meta: &mut ConstraintSystem<F>, value: Column<Advice>) -> Self {
+        let q_lookup = meta.complex_selector();
+
+        let table = table::LookupTable::<F, RANGE>::configure(meta);
+
+        meta.lookup(|meta| {
+            let q_lookup = meta.query_selector(q_lookup);
+            let v = meta.query_advice(value, Rotation::cur());
+            vec![(q_lookup * v, table.table)]
+        });
+
+        RangeConfig {
+            value,
+            table,
+            q_lookup,
+        }
+    }
+```
+
+witness 的填充则使用的是assign_table 
+
+[example code]([halo2_demo/src/examples/table.rs at master · Chengcheng-S/halo2_demo (github.com)](https://github.com/Chengcheng-S/halo2_demo/blob/master/src/examples/table.rs#L21))
+
+注意到使用 Zcash 版本 Halo2 进行 `lookup` 约束时，由于没法对 TableColumn 进行 `query_advice`这导致除了 `lookup` 约束外，无法灵活地对 `TableColumn` 中的 cell 进行 gate 约束，即`TableColumn`必须在电路初始化阶段写死，无法再更改了，即只能进行静态查找。
+
+
 
 
 

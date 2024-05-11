@@ -289,3 +289,80 @@ R1CS是二次方程，因此解是相关语言中单词存在的知识证明。 
 
 R1CS编译编程语言的另一个好处是，它们不仅可以**生成R1CS表示**，还可以生成其他能够有效地**计算电路值的程序 作业这便于将电路集成到各种平台和环境中，而不需要考虑底层的实现细节。**
 
+
+
+
+
+### 多项式
+
+系数多项式：在系数形式中，多项式表示为变量的各个幂次的线性组合
+$$
+f(x) = ax^3 + bx^2 + cx 
+$$
+其中a,b,c 就是系数。
+
+评估形式：在评估形式下，多项式标识为一组函数的点x,以及器对应的函数值y。这种形式常用于插值问题，如拉格朗日插值、牛顿插值。
+
+这两种形式各有优势。系数形式便于理解和操作，特别是对于代数运算1。而评估形式则便于理解函数在特定点的行为，特别是对于数值分析和插值。
+
+
+
+表示 Polynomial 的 2 种方式：
+
+- coefficients form: *f*(*x*)=*a*0+*a*1*x*+*a*2*x*2+…+*a**n*−1*x**n*−1
+- evaluation form: *f*(*x*)=(*x*0,*f*(*x*0)), (*x*1,*f*(*x*1)), …,(*x**n*−1,*f*(*x**n*−1))
+
+
+
+多项式计算FFT，IFFT
+
+* FFT：系数多项式----> 评估多项式
+* IFFT：评估多项式-----> 系数多项式
+
+![polynamial](./polynamial.png)
+
+> - **傅立叶变换**（Fourier transform）：从系数形式转换到评估形式的过程。简单来说，就是取一个多项式的系数，然后计算这个多项式在一组特定点上的值
+> - **逆傅立叶变换**（Inverse Fourier transform）：这是相反的过程，即从评估形式转换回系数形式。它涉及到从一组特定点上的多项式值反推出原始多项式的系数
+
+
+
+多项式乘法 **multiplication**
+
+* iFFT(FFT(f(x)) * FFT(f(x)))
+* 通过 evaluation form 相乘是比较好计算的，**只需要将相同 x 坐标的对应的 y 坐标相乘， x 坐标保持不变，从而完成多项式乘法计算。**
+
+多项式除法：division (vanishing polynomial):
+
+承诺 Commitment ----> Multiexp
+
+* MSM 即将标量向量 (scalar vector) 和椭圆曲线上的点 (point vector) 做点乘。
+
+> 在 high level 层面上，证明生成（proof generation）由 3 个阶段组成：
+>
+> 1. **phase 1**: 填入 `witness`
+> 2. **phase 2**: commit to the `witness`
+> 3. **phase 3**: prove that the witness 是正确的
+
+**phase 1**： fill witness
+
+`witness` (或者说 `trace`) 指的是一组数据，可以展示为什么某个 statement 是正确的。
+
+
+
+**phase 2**: commit to the `witness` 
+
+* 对 `witness` 的 commitment 涉及到输出 witness 的一些简洁表示 (succient representations)，并在此意义上压缩 witness。
+* 在这一步中使用多项式承诺方案 (polynomial commitment scheme) 使我们能够仅通过简洁的承诺 (succinct commitment) 来证明 original witness 里 referencing 的某些属性。
+
+**phase 3**: prove that the witness 是正确的
+
+* `phase 1` 阶段生成的 witness 必须遵从某些特定属性才能认证为 valid
+* 如若 original witness 满足了这些约束，那么一个**简短的 proof** 就可以被正常生成
+* 验证 proof 不需要访问 original witness table - 验证可以做到仅参考在 **phase 2** 生成的 succinct commitment 来进行。
+
+
+
+
+
+
+

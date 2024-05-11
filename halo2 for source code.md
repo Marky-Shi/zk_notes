@@ -334,7 +334,7 @@ impl<F: Field> Circuit<F> for MyCiruit<F> {
 }
 ```
 
-* `type FloorPlanner = SimpleFloorPlanner` 电路的业务逻辑
+* `type FloorPlanner = SimpleFloorPlanner` 电路布局器。
 * `without_witness`  电路副本
 * `configure`  电路的配置
 * `synthesize`  电路核心逻辑的入口，根据给定的`CS` (ConstraintSystem) 合成电路。
