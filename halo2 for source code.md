@@ -372,3 +372,119 @@ pub fn run<ConcreteCircuit: Circuit<F>>(
 }
 ```
 
+* `ConcreteCircuit::FloorPlanner::synthesize(&mut prover, circuit, config, constants)?;` 这部分则是将自定义的电路给实例化
+* `prover.cs.compress_selectors` 将提供的selector ，压缩优化，转换为多项式，以及CS
+* `prover.fixed.extend` 这部分代码则是在填充fixed column
+
+
+
+### Verify
+
+```rust
+fn main(){
+  ...
+  assert_eq!(prover.verify(), Ok(()));
+  ...
+}
+```
+
+```rust
+pub fn verify(&self) -> Result<(), Vec<VerifyFailure>> {
+  	
+  // check selector_errors  which not in region
+  let selector_errors = self.regions.iter().enumerate().flat_map(|(r_i, r)| {
+    ... do some check...
+    
+     match cell.column.column_type() {
+                                    Any::Instance => {
+                                        // Handle instance cells, which are not in the region.
+                                        let instance_value =
+                                            &self.instance[cell.column.index()][cell_row];
+                                        match instance_value {
+                                            InstanceValue::Assigned(_) => None,
+                                            _ => Some(VerifyFailure::InstanceCellNotAssigned {
+                                                gate: (gate_index, gate.name()).into(),
+                                                region: (r_i, r.name.clone()).into(),
+                                                gate_offset: *selector_row,
+                                                column: cell.column.try_into().unwrap(),
+                                                row: cell_row,
+                                            }),
+                                        }
+                                    }
+                                    _ => {
+                                        // Check that it was assigned!
+                                        if r.cells.contains(&(cell.column, cell_row)) {
+                                            None
+                                        } else {
+                                            Some(VerifyFailure::CellNotAssigned {
+                                                gate: (gate_index, gate.name()).into(),
+                                                region: (r_i, r.name.clone()).into(),
+                                                gate_offset: *selector_row,
+                                                column: cell.column,
+                                                offset: cell_row as isize
+                                                    - r.rows.unwrap().0 as isize,
+                                            })
+                                        }
+                                    }
+                                }
+  });
+  // Check that all gates are satisfied for all rows.
+  let gate_errors = 
+		self.cs
+                .gates
+                .iter()
+                .enumerate()
+                .flat_map(|(gate_index, gate)| {
+                   gate.polynomials().iter().enumerate().filter_map(
+                            move |(poly_index, poly)| match poly.evaluate(...){
+                            Value::Real(x) if x.is_zero_vartime() => None,
+                            Value::Real(_) => Some(VerifyFailure::ConstraintNotSatisfied {...}
+                            Value::Poison => Some(VerifyFailure::ConstraintPoisoned {...}
+                     }
+                  };
+  // check lookup error                       
+  let lookup_errors = 
+      ......
+      Some(VerifyFailure::Lookup {
+                                    lookup_index,
+                                    location: FailureLocation::find_expressions(
+                                        &self.cs,
+                                        &self.regions,
+                                        *input_row,
+                                        lookup.input_expressions.iter(),
+                                    ),
+                                })
+                            } else {
+                                None
+                            }
+ let perm_errors = {
+     ...... 
+     
+     }
+                     
+}
+```
+
+* `selector_error` : 检查每个region内，实例化门中使用的所有单元都已被分配 .
+  * 迭代每一个region，对于每个region，迭代selecor，对于每个启用的selector，找出由该选择器启用的所有gate，对于每个门，遍历其查询的所有cell。若cell没有被正确地分配，那么就生成一个`VerifyFailure::CellNotAssigned`或`VerifyFailure::InstanceCellNotAssigned`错误，表示单元格没有被分配。
+* `gate_error` :  检查所有的gate 是否都满足约束条件，遍历多项式，并计算值，如果不为0，则约束不满足，生成`VerifyFailure::ConstraintNotSatisfied` 错误。这个错误包含了约束的详细信息，包括约束的名称、位置以及在该位置的单元格值。
+  * 若为 `Value::Poison`   返回`VerifyFailure::ConstraintPoisoned` 
+  * 这段代码的目的是找出所有不满足约束的门，并生成相应的错误信息。这是零知识证明中非常重要的一步，因为它确保了证明的正确性。如果所有的门都满足约束，那么证明就是有效的。否则，证明就是无效的。
+* `lookup_error` 检查所有的查找（lookups）是否满足约束条件。
+  * 对于每个查找，计算其在表格中的所有行的值（`lookup.table_expressions.iter().map(move |c| load(c, self.usable_rows.end - 1))`）并将其存储在`fill_row`中。
+  * 对于每个查找，遍历其在可用行中的所有行（`self.usable_rows.clone().filter_map(|table_row| {...})`），并将不等于`fill_row`的行的值存储在`table`中。
+  * 对于每个查找，遍历其在可用行中的所有行（`self.usable_rows.clone().filter_map(|input_row| {...})`），并将不等于`fill_row`的行的值以及原始输入行的索引存储在`inputs`中。
+  * 对 `inputs`  `table` 进行排序，对于`inputs`中的每个元素，如果它不在`table`中，那么就生成一个`VerifyFailure::Lookup`错误，表示查找失败。
+* `perm_error` 检查所有的排列（permutations）是否满足约束条件
+  * 遍历所有的排列列（`self.permutation.mapping.iter().enumerate()`）。
+  * 对于每个列，遍历其所有的行（`values.iter().enumerate()`）并检查单元格的值是否被映射保留。
+  * 如果原始单元格的值和排列后的单元格的值不相等（`if original_cell == permuted_cell {...} else {...}`），那么就生成一个`VerifyFailure::Permutation`错误，表示排列失败。
+
+
+
+
+
+
+
+
+
