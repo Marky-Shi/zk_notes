@@ -110,7 +110,40 @@ halo2电路书写形式与其他不同（如bellman），采用**`table`**或**`
 
 Halo2的lookup技术可以被看作是一种**在变量之间强制执行关系的方法**，其中关系是通过`table`来表示的。这种查找技术允许**在固定或可变的表格中查找值**。这意味着可以在固定的表格中进行范围证明，或者在可变的表格中（包括建议列）验证一个电路的输入是否属于另一个电路的输出。
 
+
+
+Lookup table 的用途： 
+
+1. 优化算术运算：预先计算复杂运算的值（如乘法逆或模数约简），以加快运行时计算速度。 
+2. 高效的多项式计算：存储多项式在不同点的计算结果，减少了在证明生成过程中动态计算这些计算的需要。 
+3. 约束满足：通过存储满足这些约束的有效值对，帮助确保满足特定约束。
+
+
+
+实施细节 ： 
+
+1. 表定义：指定查找表的结构，包括输入和输出。 
+2. 预计算：计算要存储在表中的值。 此操作只需完成一次即可重复使用多次。
+3. 查找参数：通过查找参数将查找表合并到 ZKP 系统中，该参数断言证明中的某些值对应于查找表中的条目。
+
+
+
+使用查找表的好处 
+
+1. 性能：由于计算量减少，证明生成和验证的速度显着加快。 
+2. 简单性：简化复杂算术运算的实现。 
+3. 可扩展性：通过卸载密集计算，可以处理更大、更复杂的证明。
+
+缺点：
+
+1. 内存开销：查找表可能会消耗大量内存，尤其是对于大型表。 
+2. 预计算时间：预计算表的初始设置时间可能很长，尽管这会分摊到许多用途中。
+
+
+
 lookup 必须使用 `complex_selector`，因为 Halo2 可以根据这个标记知道这种 Selecotr 列不需要优化，而普通的 Selector 则可能会被 Layouter 进行合并等优化操作。
+
+
 
 [example code]([halo2_demo/src/examples/range_lookup.rs at master · Chengcheng-S/halo2_demo (github.com)](https://github.com/Chengcheng-S/halo2_demo/blob/master/src/examples/range_lookup.rs#L21))
 
@@ -139,6 +172,18 @@ witness 的填充则使用的是assign_table
 [example code]([halo2_demo/src/examples/table.rs at master · Chengcheng-S/halo2_demo (github.com)](https://github.com/Chengcheng-S/halo2_demo/blob/master/src/examples/table.rs#L21))
 
 注意到使用 Zcash 版本 Halo2 进行 `lookup` 约束时，由于没法对 TableColumn 进行 `query_advice`这导致除了 `lookup` 约束外，无法灵活地对 `TableColumn` 中的 cell 进行 gate 约束，即`TableColumn`必须在电路初始化阶段写死，无法再更改了，即只能进行静态查找。
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
