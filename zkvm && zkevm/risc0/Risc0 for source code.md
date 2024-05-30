@@ -1,5 +1,9 @@
 # `Risc0`example project
 
+详细的[日志]([risc0-code/hello/run.log at main · Chengcheng-S/risc0-code (github.com)](https://github.com/Chengcheng-S/risc0-code/blob/main/hello/run.log))可以查看
+
+
+
 Example 
 
 ```shell
@@ -214,7 +218,204 @@ fn prove_session(&self, ctx: &VerifierContext, session: &Session) -> Result<Prov
 大致分为以下几步：
 
 * `segment` ： 迭代session中的每个segments，调用hook `hook.on_pre_prove_segment(&segment);`  然后调用 `prove_segment` 方法生成证明，最后再次调用所有的钩子函数的 `on_post_prove_segment` 方法。**这个过程实现了对会话中每个段落的独立证明。**
+  * 生成证明的过程和以往的zk-snark 又不太一样，详情请见思维导图。
+
 * `Assumption` ：函数接下来处理 `session` 中的所有假设。它首先将假设和假设收据分离，然后将包括日志摘要和假设在内的输出合并到最后一个段落中。**这个过程实现了对session中所有假设的处理和证明。**
 * `composite_receipt`:  聚合分段证明，函数检查收据的完整性`verify_integrity_with_context(ctx)?` ，并确保收据的声明与 `session` 的声明匹配。**这个过程实现了对session proof的完整性检查。**
 * `Compress the receipt` : 收据压缩为 `Composite`、`Succinct` 或 `Groth16` 类型，然后再次检查收据的完整性，并确保收据的声明与 `session` 的声明匹配。**这个过程实现了对session证明的压缩和再次完整性检查**。
 
+
+
+## Verify 
+
+```rust
+pub fn verify(&self, image_id: impl Into<Digest>) -> Result<(), VerificationError> {
+        self.verify_with_context(&VerifierContext::default(), image_id)
+    }
+```
+
+
+
+```rust
+pub fn verify_with_context(
+        &self,
+        ctx: &VerifierContext,
+        image_id: impl Into<Digest>,
+    ) -> Result<(), VerificationError> {
+        if self.inner.verifier_parameters() != self.metadata.verifier_parameters {
+            return Err(VerificationError::VerifierParametersMismatch {
+                expected: self.inner.verifier_parameters(),
+                received: self.metadata.verifier_parameters,
+            });
+        }
+
+        tracing::debug!("Receipt::verify_with_context");
+        self.inner.verify_integrity_with_context(ctx)?;
+
+        let expected_claim = ReceiptClaim::ok(image_id, MaybePruned::Pruned(self.journal.digest()));
+        if expected_claim.digest() != self.inner.claim()?.digest() {
+            tracing::debug!(
+                "receipt claim does not match expected claim:\nreceipt: {:#?}\nexpected: {:#?}",
+                self.inner.claim()?,
+                expected_claim
+            );
+            return Err(VerificationError::ClaimDigestMismatch {
+                expected: expected_claim.digest(),
+                received: self.claim()?.digest(),
+            });
+        }
+
+        Ok(())
+    }
+```
+
+* 验证参数： 它比较内部验证器参数和元数据中的验证器参数是否匹配，如果不匹配则返回错误。
+* 验证完整性： `self.inner.verify_integrity_with_context(ctx)?;`
+* 检查声明：检查验证的收据上的声明是否与预期的匹配。
+
+
+
+
+
+`verify_integrity_with_context`  验证收据的完整性和assumption的正确性
+
+```rust
+pub fn verify_integrity_with_context(
+        &self,
+        ctx: &VerifierContext,
+    ) -> Result<(), VerificationError> {
+      
+      // do something
+      ......
+      // 连续性验证
+      for receipt in receipts {
+            receipt.verify_integrity_with_context(ctx)?;
+            tracing::debug!("claim: {:#?}", receipt.claim);
+            if let Some(id) = expected_pre_state_digest {
+                if id != receipt.claim.pre.digest::<sha::Impl>() {
+                    return Err(VerificationError::ImageVerificationError);
+                }
+            }
+            if receipt.claim.exit_code != ExitCode::SystemSplit {
+                return Err(VerificationError::UnexpectedExitCode);
+            }
+            if !receipt.claim.output.is_none() {
+                return Err(VerificationError::ReceiptFormatError);
+            }
+            expected_pre_state_digest = Some(
+                receipt
+                    .claim
+                    .post
+                    .as_value()
+                    .map_err(|_| VerificationError::ReceiptFormatError)?
+                    .digest::<sha::Impl>(),
+            );
+        }
+      
+      // 完整性验证
+      final_receipt.verify_integrity_with_context(ctx)?;
+        tracing::debug!("final: {:#?}", final_receipt.claim);
+        if let Some(id) = expected_pre_state_digest {
+            if id != final_receipt.claim.pre.digest::<sha::Impl>() {
+                return Err(VerificationError::ImageVerificationError);
+            }
+        }
+      
+      // 验证所有的假设
+      for (assumption, receipt) in assumptions.into_iter().zip(self.assumption_receipts.iter()) {
+            let assumption_ctx = match assumption.control_root {
+                // If the control root is all zeroes, we should use the same verifier paramters.
+                Digest::ZERO => None,
+                // Otherwise, we should verify the assumption receipt using the guest-provided root.
+                control_root => Some(
+                    VerifierContext::empty()
+                        .with_suites(ctx.suites.clone())
+                        .with_succinct_verifier_parameters(SuccinctReceiptVerifierParameters {
+                            control_root,
+                            inner_control_root: None,
+                            proof_system_info: PROOF_SYSTEM_INFO,
+                            circuit_info: CircuitImpl::CIRCUIT_INFO,
+                        }),
+                ),
+            };
+            tracing::debug!("verifying assumption: {assumption:?}");
+            receipt.verify_integrity_with_context(assumption_ctx.as_ref().unwrap_or(ctx))?;
+            if receipt.claim_digest()? != assumption.claim {
+                tracing::debug!(
+                    "verifying assumption failed due to claim mismatch: assumption: {assumption:?}, receipt claim digest: {}",
+                    receipt.claim_digest()?
+                );
+                return Err(VerificationError::ClaimDigestMismatch {
+                    expected: assumption.claim,
+                    received: receipt.claim_digest()?,
+                });
+            }
+        }
+      
+      
+}
+```
+
+* 验证连续性：通过按顺序验证每个段收据来验证连续性。
+* 验证每个段及其链接到下一个段：对于收据中的每个段，都会进行完整性验证，并检查其预状态摘要是否与预期的一致。如果不一致，将返回一个 ImageVerificationError 错误。此外，还会检查退出代码是否为 SystemSplit，并确认没有输出。
+* 验证最后一个收据：验证连续性中的最后一个收据，并检查其预状态摘要是否与预期的一致。
+* 验证所有假设：验证收据上的所有假设是否由附加的收据解决。确保每个假设都有一个收据。如果假设的数量与假设收据的数量不匹配，将返回一个 ReceiptFormatError 错误。对于每个假设和收据，都会进行完整性验证，并检查其声明摘要是否与假设的一致。如果不一致，将返回一个 ClaimDigestMismatch 错误。
+
+
+
+## compress
+
+将recipt 压缩
+
+```rust
+fn compress(&self, opts: &ProverOpts, receipt: &Receipt) -> Result<Receipt> {
+        match &receipt.inner {
+            InnerReceipt::Composite(inner) => match opts.receipt_kind {
+                ReceiptKind::Composite => Ok(receipt.clone()),
+                ReceiptKind::Succinct => {
+                    let succinct_receipt = self.composite_to_succinct(inner)?;
+                    Ok(Receipt::new(
+                        InnerReceipt::Succinct(succinct_receipt),
+                        receipt.journal.bytes.clone(),
+                    ))
+                }
+                ReceiptKind::Groth16 => {
+                    let succinct_receipt = self.composite_to_succinct(inner)?;
+                    let groth16_receipt = self.succinct_to_groth16(&succinct_receipt)?;
+                    Ok(Receipt::new(
+                        InnerReceipt::Groth16(groth16_receipt),
+                        receipt.journal.bytes.clone(),
+                    ))
+                }
+            },
+            InnerReceipt::Succinct(inner) => match opts.receipt_kind {
+                ReceiptKind::Composite | ReceiptKind::Succinct => Ok(receipt.clone()),
+                ReceiptKind::Groth16 => {
+                    let groth16_receipt = self.succinct_to_groth16(inner)?;
+                    Ok(Receipt::new(
+                        InnerReceipt::Groth16(groth16_receipt),
+                        receipt.journal.bytes.clone(),
+                    ))
+                }
+            },
+            InnerReceipt::Groth16(_) => match opts.receipt_kind {
+                ReceiptKind::Composite | ReceiptKind::Succinct | ReceiptKind::Groth16 => {
+                    Ok(receipt.clone())
+                }
+            },
+            InnerReceipt::Fake(_) => {
+                ensure!(
+                    is_dev_mode(),
+                    "dev mode must be enabled to compress fake receipts"
+                );
+                Ok(receipt.clone())
+            }
+        }
+    }
+```
+
+TIP：压缩为groth16 的时候一定要注意，必须在x86架构的cpu上，且必须安装有docker。
+
+
+
+![risc0-local-prover](./Risc0-local-prover.svg)
