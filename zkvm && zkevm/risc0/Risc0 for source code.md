@@ -70,7 +70,7 @@ fn main() {
 
 
 
-## prove
+## Local prove
 
 在之前的笔记中也大致介绍过了，risc0 proof的生成，验证分为三种方式： remote，dev-mode，local。**本节中以local为例进行分析**。
 
@@ -419,3 +419,113 @@ TIP：压缩为groth16 的时候一定要注意，必须在x86架构的cpu上，
 
 
 ![risc0-local-prover](./Risc0-local-prover.png)
+
+
+
+## Bonsai prove
+
+```rust
+fn prove_with_ctx(
+        &self,
+        env: ExecutorEnv<'_>,
+        ctx: &VerifierContext,
+        elf: &[u8],
+        opts: &ProverOpts,
+    ) -> Result<ProveInfo> {
+      
+      // initliaze  client and upload images elf files && PI
+      client.upload_img(&image_id_hex, elf.to_vec())?;
+      let input_id = client.upload_input(env.input)?;
+      
+      //upload receipts
+      for assumption in &env.assumptions.borrow().cached {
+            let serialized_receipt = match assumption {
+                crate::AssumptionReceipt::Proven(receipt) => bincode::serialize(receipt)?,
+                crate::AssumptionReceipt::Unresolved(_) => {
+                    bail!("only proven assumptions can be uploaded to Bonsai.")
+                }
+            };
+            let receipt_id = client.upload_receipt(serialized_receipt)?;
+            receipts_ids.push(receipt_id);
+        }
+      
+      //generate proof and download receipt
+      let succinct_prove_info = loop{
+        ... do something ...	
+        if res.status == "SUCCEEDED" {
+                // Download the receipt, containing the output
+                let receipt_url = res
+                    .receipt_url
+                    .ok_or(anyhow!("API error, missing receipt on completed session"))?;
+
+                let stats = res
+                    .stats
+                    .context("Missing stats object on Bonsai status res")?;
+                tracing::debug!(
+                    "Bonsai usage: cycles: {} total_cycles: {}",
+                    stats.cycles,
+                    stats.total_cycles
+                );
+
+                let receipt_buf = client.download(&receipt_url)?;
+                let receipt: Receipt = bincode::deserialize(&receipt_buf)?;
+
+                if opts.prove_guest_errors {
+                    receipt.verify_integrity_with_context(ctx)?;
+                } else {
+                    receipt.verify_with_context(ctx, image_id)?;
+                }
+                break ProveInfo {
+                    receipt,
+                    stats: crate::SessionStats {
+                        segments: stats.segments,
+                        total_cycles: stats.total_cycles,
+                        user_cycles: stats.cycles,
+                    },
+                };
+      };
+      
+      // return receipt  
+      match opts.receipt_kind {
+            // If the caller requested a composite or succinct receipt, we are done.
+            ReceiptKind::Composite | ReceiptKind::Succinct => {
+                return Ok(succinct_prove_info);
+            }
+            // If they requested a groth16 receipts, we need to continue.
+            ReceiptKind::Groth16 => {}
+        }
+        
+      	// if need groth16 carate snark proof
+        let snark_session = client.create_snark(session.uuid)?;
+        let snark_receipt = loop {
+        	"SUCCEEDED" => {
+                    break res.output.with_context(|| {
+                        format!(
+                            "Bonsai prover workflow [{}] reported success, but provided no receipt",
+                            snark_session.uuid
+                        )
+                    })?;
+        };
+          
+       //verify groth16 receipt
+       let groth16_receipt = Receipt::new(
+            InnerReceipt::Groth16(Groth16Receipt {
+                seal: snark_receipt.snark.to_vec(),
+                claim: succinct_prove_info.receipt.claim()?,
+                verifier_parameters: ctx.groth16_verifier_parameters.digest(),
+            }),
+            succinct_prove_info.receipt.journal.bytes,
+        );
+        groth16_receipt
+            .verify_integrity_with_context(ctx)
+            .context("failed to verify Groth16Receipt returned by Bonsai")?;
+          
+        Ok(ProveInfo {
+            receipt: groth16_receipt,
+            stats: succinct_prove_info.stats,
+        })
+        
+}
+```
+
+该函数是一个用于在Bonsai prover上进行证明过程的函数。它通过上传ELF二进制文件、输入数据、收据以及与Bonsai prover进行交互来完成证明的生成和验证。
