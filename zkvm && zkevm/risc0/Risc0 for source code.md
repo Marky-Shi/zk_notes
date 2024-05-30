@@ -418,4 +418,4 @@ TIP：压缩为groth16 的时候一定要注意，必须在x86架构的cpu上，
 
 
 
-![risc0-local-prover](./Risc0-local-prover.svg)
+![risc0-local-prover](./Risc0-local-prover.png)
