@@ -1,5 +1,9 @@
 ## Jolt zkvm implement
 
+![jolt-work-flow](./Jolt-work-flow.jpg)
+
+
+
 ### Sart by demo
 
 在jolt中新建一个目录一般会生成一下的文件
