@@ -4,7 +4,7 @@ SP1 commit : ab0efc008737407e609439a4d362395bb2e325b1
 
 ![sp1-workflow](./Sp1 overflow.jpg)
 
-PS: 官方目前只实现了groth16 的prove/verify，plonk的并未实现。
+
 
 Program/src
 
