@@ -191,7 +191,7 @@ impl<F: Field> FieldChip<F> {
 
 
 
-FieldChip 的具体实现，（自定义电路的借口实现，为下一步实现自定义电路做铺垫）
+FieldChip 的具体实现，（自定义电路的接口实现，为下一步实现自定义电路做铺垫）
 
 ```rust
 impl<F: Field> NumericInstructions<F> for FieldChip<F> {
