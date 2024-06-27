@@ -572,5 +572,39 @@ template IsOver21() {
 
 
 
+### TOOLS
 
+社区中circom 开发的用到的工具
+
+Circomspect 是 Circom 编程语言的静态分析器和 linter
+
+https://github.com/trailofbits/circomspect
+
+```shell
+cargo install circomspect
+
+useage:
+circomspect path/circuit.circom  --curve BN254 --level debug
+
+A static analyzer and linter for Circom programs
+
+USAGE:
+    circomspect [OPTIONS] [INPUT]...
+
+ARGS:
+    <INPUT>...    Initial input file(s)
+
+OPTIONS:
+    -a, --allow <ID>             Ignore results from given analysis passes
+    -c, --curve <NAME>           Set curve (BN254, BLS12_381, or GOLDILOCKS) [default: BN254]
+    -h, --help                   Print help information
+    -l, --level <LEVEL>          Output level (INFO, WARNING, or ERROR) [default: WARNING]
+    -L, --library <LIBRARIES>    Library file paths
+    -s, --sarif-file <OUTPUT>    Output analysis results to a Sarif file
+    -v, --verbose                Enable verbose output
+```
+
+
+
+circom 在线编译器 https://zkrepl.dev/ 
 
