@@ -1,6 +1,6 @@
 ## Jolt zkvm implement
 
-![jolt-work-flow](./Jolt-work-flow.jpg)
+![jolt-work-flow](./Jolt-work-flow.png)
 
 
 

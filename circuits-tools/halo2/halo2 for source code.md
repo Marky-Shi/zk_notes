@@ -482,9 +482,60 @@ pub fn verify(&self) -> Result<(), Vec<VerifyFailure>> {
 
 
 
+![halo2 mack](./Halo2 mock course code.png)
 
 
 
+之前所有的例子都是基于mock环境的，还有一种其他表示方式
 
+```rust
+#[test]
+    fn test_generate_proof() {
+        let k = 7u32;
 
+        // Prepare the private and public inputs to the circuit!
+        let constant = Fp::from(7);
+        let a = Fp::from(2);
+        let b = Fp::from(3);
+
+        // Instantiate the circuit with the private inputs.
+        let circuit = SimpleCircuit {
+            constant,
+            a: Value::known(a),
+            b: Value::known(b),
+        };
+        let instances = vec![constant * a.square() * b.square()];
+
+        // construct proof
+        let params: Params<EqAffine> = Params::new(k);
+
+        let vk = keygen_vk(&params, &circuit).expect("keygen_vk should not fail");
+        let pk = keygen_pk(&params, vk, &circuit).expect("keygen_pk should not fail");
+        let mut transcript_for_proof = Blake2bWrite::<_, _, Challenge255<_>>::init(vec![]);
+
+        create_proof(
+            &params,
+            &pk,
+            &[circuit],
+            &[&[instances.as_slice()]], // instance must eq circuit numbers
+            &mut OsRng,
+            &mut transcript_for_proof,
+        )
+        .expect("create proof failed");
+        let proof = transcript_for_proof.finalize();
+
+        let strategy = SingleVerifier::new(&params);
+        let mut transcript = Blake2bRead::<_, _, Challenge255<_>>::init(&proof[..]);
+        assert!(verify_proof(
+            &params,
+            pk.get_vk(),
+            strategy,
+            &[&[instances.as_slice()]],
+            &mut transcript
+        )
+        .is_ok());
+    }
+```
+
+![halo2 code](./halo2 source code.png)
 
