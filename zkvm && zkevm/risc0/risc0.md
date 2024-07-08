@@ -1,6 +1,6 @@
 ## RICS0
 
-jolt/sp1 等收到RICS0的启发实现的zkvm，但是不同于sp1/jolt的是，rics0是基于zk-starks协议实现的。
+jolt/sp1 等受到RICS0的启发实现的zkvm，但是不同于sp1/jolt的是，rics0是基于zk-starks协议实现的。
 
 科普一下zk-starks：
 

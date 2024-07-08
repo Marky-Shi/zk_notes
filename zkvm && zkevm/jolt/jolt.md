@@ -118,7 +118,7 @@ Jolt 代码库的组织方式类似，但将读写存储器（包括寄存器和
 
 
 
-* Read-Write memory : 为了处理对 RAM（和寄存器）的读/写，Jolt 使用来自 Spice 的内存检查参数，该参数与 Lasso 本身密切相关。它们都基于“离线内存检查”技术，主要区别在于 Lasso 支持只读内存，而 Spice 支持读写内存，因此价格稍贵。 
+* Read-Write memory : 为了处理对 RAM（和寄存器）的读/写，Jolt 使用来自 Spice 的内存检查参数，该参数与 Lasso 本身密切相关。它们都基于“离线内存检查”技术，主要区别在于 **Lasso 支持只读内存**，而 **Spice 支持读写内存**，因此成本稍贵。 
 
   * Jolt 使用离线内存检查来证明寄存器和 RAM 的有效性。与我们在其他模块中使用离线内存检查不同，寄存器和 `RAM 是可写内存`。
 
@@ -128,13 +128,13 @@ Jolt 代码库的组织方式类似，但将读写存储器（包括寄存器和
 
   * Program IO:
 
-    * 程序输入和输出（以及恐慌位，指示程序是否恐慌）与 RAM 位于同一内存地址空间中。程序输入在初始化时填充指定的输入空间, 验证者可以自行有效地计算该初始内存状态的 MLE（即与 IO 大小成比例的时间，而不是总内存大小）。![init_state](./initial_memory_state.png)
+    * 程序输入和输出（以及panic位，指示程序是否panic）与 RAM 位于同一内存地址空间中。程序输入在初始化时填充指定的输入空间, 验证者可以自行有效地计算该初始内存状态的 MLE（即与 IO 大小成比例的时间，而不是总内存大小）。![init_state](./initial_memory_state.png)
 
     * 另一方面，验证程序无法独自计算最终内存状态的MLE——尽管程序 I/O 已知于验证程序，但最终内存状态包含在程序执行过程中写入寄存器/RAM 的值，这些值验证程序并不知道。然而，验证程序能够计算程序 I/O 值的 MLE（两侧填充零） - 如下所示为 v_io。如果证明者诚实，那么最终的内存状态（如下面的 v_final）应在与程序 I/O 对应的索引处与 v_io 相符。![final_memory_state](./final_memory_state.png) 为了强制执行此操作，调用 sumcheck 协议对 v_final 和 v_io 之间的差异执行“零检查”。![program_check](./program_output_sumcheck.png)
 
       这也激励了在“程序I/O”和“RAM”部分之间进行零填充。零填充确保input_start和ram_witness_offset都是2的幂，这使得验证器更容易计算v_init和v_io的MLE。
 
-    * TimeStamp range check:  确保读值的正确性，验证每个读取操作是否检索在上一步（而不是未来步骤）中写入的值。断言每个读取操作的时间戳（表示为 read_timestamp）不得超过该特定步骤的全局时间戳。全局时间戳从 0 开始，每一步递增一次。验证read_timestamp≤global_timestamp相当于确认read_timestamp落在[0,TRACE_LENGTH)范围内，并且差值`(global_timestamp−read_timestamp)`也在同一范围内。确保 read_timestamp 和 `(global_timestamp−read_timestamp)` 都位于指定范围内的过程称为范围检查。这是在 `timestamp_range_check.rs `中使用 Lasso 的修改版本实现的过程。
+    * **TimeStamp range check**:  确保读值的正确性，验证每个读取操作是否检索在上一步（而不是未来步骤）中写入的值。断言每个读取操作的时间戳（表示为 read_timestamp）不得超过该特定步骤的全局时间戳。全局时间戳从 0 开始，每一步递增一次。验证read_timestamp≤global_timestamp相当于确认read_timestamp落在[0,TRACE_LENGTH)范围内，并且差值`(global_timestamp−read_timestamp)`也在同一范围内。确保 read_timestamp 和 `(global_timestamp−read_timestamp)` 都位于指定范围内的过程称为范围检查。这是在 `timestamp_range_check.rs `中使用 Lasso 的修改版本实现的过程。
 
 * R1CS : `fetch-decode-execute `中的 `fetch`部分  (RISC-V VM 的每个周期大约有 60 个约束）。这些约束处理程序计数器 (PC) 更新,强制下面组件中使用的多项式之间的一致性。 Jolt 使用[Spartan](https://eprint.iacr.org/2019/550)，针对约束系统的高度结构化性质进行了优化（例如，R1CS 约束矩阵是块对角矩阵，块大小仅为约 60 x 80）。这是在[jolt-core/src/r1cs](https://jolt.a16zcrypto.com/jolt-core/src/r1cs/)中实现的。
 
@@ -167,7 +167,7 @@ Jolt 代码库的组织方式类似，但将读写存储器（包括寄存器和
       * `is_conact`: indicates whether the instruction performs a concat-type lookup.
   * 指令标志：这些是用于指示在给定步骤执行指令的一元位。每步的数量与 Jolt 中唯一指令查找表的数量一样多，即 19 个。
   * `Constraint system`: CPU 步骤的约束在 get_jolt_matrices() 函数中
-  * `Reusing commitments`: 与大多数SNARK后端一样，Spartan需要计算对约束系统输入的承诺。Jolt中的一个技巧，`大多数输入也用作其他模块中证明的输入`。例如，与字节码相关的地址和值在字节码内存检查证明中使用，查找块、输出和标志在指令查找证明中使用。为了保证Jolt的正确性，必须确保相同的输入被提供给所有相关证明。通过重新使用承诺本身来实现这一点。这可以在r1cs/snark模块中的format_commitments()函数中看到。Spartan被调整为接受预提交的见证变量。
+  * `Reusing commitments`: 与大多数SNARK后端一样，**Spartan需要计算对约束系统输入的承诺**。Jolt中的一个技巧，`大多数输入也用作其他模块中证明的输入`。例如，与字节码相关的地址和值在字节码内存检查证明中使用，查找块、输出和标志在指令查找证明中使用。为了保证Jolt的正确性，必须确保相同的输入被提供给所有相关证明。通过重新使用承诺本身来实现这一点。这可以在r1cs/snark模块中的format_commitments()函数中看到。Spartan被调整为接受预提交的见证变量。
   * `uniform`:
     * Spartan 被修改为仅接受单个步骤的约束矩阵以及步骤总数。使用它，证明者和验证者可以有效地计算完整 R1CS 矩阵的多线性扩展。
     * witness 的承诺格式已更改以反映一致性。与每个时间步对应的变量的所有版本都一起提交。这会影响 Jolt 中提交的几乎所有变量。
