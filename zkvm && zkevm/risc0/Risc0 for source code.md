@@ -2,9 +2,7 @@
 
 详细的[日志]([risc0-code/hello/run.log at main · Chengcheng-S/risc0-code (github.com)](https://github.com/Chengcheng-S/risc0-code/blob/main/hello/run.log))可以查看
 
-
-
-Example 
+Example
 
 ```shell
 total 176
@@ -272,10 +270,6 @@ pub fn verify_with_context(
 * 验证参数： 它比较内部验证器参数和元数据中的验证器参数是否匹配，如果不匹配则返回错误。
 * 验证完整性： `self.inner.verify_integrity_with_context(ctx)?;`
 * 检查声明：检查验证的收据上的声明是否与预期的匹配。
-
-
-
-
 
 `verify_integrity_with_context`  验证收据的完整性和assumption的正确性
 

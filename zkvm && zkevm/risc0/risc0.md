@@ -4,7 +4,7 @@ jolt/sp1 等受到RICS0的启发实现的zkvm，但是不同于sp1/jolt的是，
 
 科普一下zk-starks：
 
-ZK-STARKs，全称为Zero-Knowledge Scalable Transparent Argument of Knowledge（零知识可扩展透明知识论证），是一种零知识证明系统。就像ZK-SNARKs一样，ZK-STARKs可以验证一个声明的有效性，而不透露任何关于声明本身的信息
+ZK-STARKs，全称为Zero-Knowledge Scalable Transparent Argument of Knowledge（零知识可扩展透明知识论证），是一种零知识证明系统。就像ZK-SNARKs一样，ZK-STARKs可以验证一个声明的有效性，而不透露任何关于声明本身的信息。
 
 特性：
 
@@ -84,8 +84,6 @@ receipt 给出了程序的结果以及这些结果是`诚实生成的证据`
 >
 > Receipt由journal和seal组成。journal证明了程序的公开输出，而seal是隐私的，以密码方式证明了收据的有效性。
 
-
-
 ### Host
 
 在 zkVM 应用程序中，host是运行 zkVM 中。host是一个不受信任的代理，用于设置 zkVM 环境和 在执行过程中处理输入/输出。
@@ -106,8 +104,6 @@ let receipt = prover.prove(env, METHOD_NAME_ELF).unwrap();
 receipt.verify(METHOD_NAME_ID).unwrap();
 ```
 
-
-
 使用dev mode 绕过耗时的证明生成，激活开发模式
 
 ```shell
@@ -121,15 +117,11 @@ RISC0_DEV_MODE=1 cargo run --release
 RISC0_DEV_MODE=0 cargo run --release
 ```
 
-
-
 ### RICS0中用于生成proof的选项
 
 * local： 在用户自己的 CPU/GPU 上生成证明。
 * dev-mode：不生成任何证明，从而实现快速原型设计。
 * remote（Bonsai）：证明由 Bonsai 生成，Bonsai 是一种高度并行、高性能的证明服务。
-
-
 
 ### 程序分析与优化
 
