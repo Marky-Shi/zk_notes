@@ -1,6 +1,6 @@
-# source code
+# Project Architecture
 
-## Main Node - crate
+## Main Node - crates
 
 ### consensus node
 
