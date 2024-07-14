@@ -26,9 +26,17 @@ core/node/vm_runner/src/process.rs >>>async fn  process_batch
 
 ### eth-sender
 
+Eth-tx-manager 
 
+Eth-tx-aggregator
 
+### Eth-watch 
 
+ZKsync Era Eth Watcher 组件，从相应的 L1 合约中获取更改。
+
+在内部，Eth Watcher 包含事件处理器，每个处理器提供一个相关tpoic（即字节 32 Solidity 事件选择器），并负责处理相应的事件。 除了事件，处理器还能访问 L1 客户端（查询更多信息）和节点 Postgres（持久化处理结果）。
+
+Eth Watcher 将provess中的topic合并到单个过滤器中，并定期查询 L1 是否有相应的事件。获取的事件按provess进行分区并连续馈送到它们。
 
 ## external-node
 
@@ -44,11 +52,11 @@ zksync-era  external node 用来处理节点同步、状态管理、共识以及
 
 ZKsync Era 承诺生成器组件的实现，根据以太坊主网上 L1 批处理信息，生成相应的 zkSync 证明所需的提交数据。
 
+协作模块boojum
+
 ### consistency-checker
 
 zkSync Era 中负责 **一致性检查 (Consistency Check)** 的功能模块。它的作用是对比 zkSync 网络内部的状态和以太坊主网上对应的信息，确保两者之间的一致性。
-
-
 
 ### Batch-state-updater
 
@@ -68,7 +76,7 @@ zkSync Era 中负责 **批处理状态更新 (Batch Status Updater)** 的功能�
 
 * 可检索有关由序列器执行的批次的数据并在 TEE 中对其进行验证
 * 将已验证批次的证明提交回序列器
-* 当应用程序启动时，它会在序列器上注册证明，然后循环运行，轮询序列器以获取新作业（批次），验证它们，并提交生成的证明
+* 当应用程序启动时，它会在序列器上注册证明，然后循环运行，轮询序列器以获取新job（batch），验证它们，并提交生成的证明
 
 zksync-era TEE-Prover 主要负责生成批次证明，并将这些证明通过其他模块返回到 L1 进行验证。这是 L2 批次处理和最终提交到 L1 验证过程中的关键一步。
 
