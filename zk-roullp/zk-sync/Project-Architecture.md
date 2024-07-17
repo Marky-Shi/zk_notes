@@ -84,6 +84,48 @@ zksync-era TEE-Prover 主要负责生成批次证明，并将这些证明通过�
 
 **验证智能合约** 的有效性和安全性
 
+* 验证合约编译后的字节码与部署的字节码是否一致，
+
+  ```rust
+  if artifacts.bytecode != deployed_bytecode {
+              tracing::info!(
+                  "Bytecode mismatch req {}, deployed: 0x{}, compiled 0x{}",
+                  request.id,
+                  hex::encode(deployed_bytecode),
+                  hex::encode(artifacts.bytecode)
+              );
+              return Err(ContractVerifierError::BytecodeMismatch);
+          }
+  ```
+
+  * 目前支持的是 solc以及 vyper
+
+    * ```rsut
+      match request.req.source_code_data.compiler_type() {
+                  CompilerType::Solc => Self::compile_zksolc(request, config).await,
+                  CompilerType::Vyper => Self::compile_zkvyper(request, config).await,
+              }
+      ```
+
+      
+
+* 验证构造函数是否一致
+
+  ```rust
+   match constructor_args {
+              ConstructorArgs::Check(args) => {
+                  if request.req.constructor_arguments.0 != args {
+                      return Err(ContractVerifierError::IncorrectConstructorArguments);
+                  }
+              }
+              ConstructorArgs::Ignore => {
+                  request.req.constructor_arguments = Vec::new().into();
+              }
+          }
+  ```
+
+  
+
 ```rust
 async fn main()->anyhow::Result<()>{
   
@@ -105,3 +147,4 @@ async fn main()->anyhow::Result<()>{
 }
 ```
 
+![zksync-era node server](./zksync era.png)

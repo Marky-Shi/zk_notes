@@ -35,7 +35,7 @@ located in `src/aux_layer`.
 
 ## Circuit types
 
-12 different circuit types (in witness, you might notice 13, as one circuit (events_dedup_and_sort) is used for
+12 different circuit types (in witness, you might notice 16, as one circuit (events_dedup_and_sort) is used for
 both L1 messages and events).
 
 | Circuit name             | Location                     | Description                                                  |
@@ -53,6 +53,9 @@ both L1 messages and events).
 | EventsSorter             | events_sort_dedup.rs         | 验证给定的“未排序”队列是否与已排序队列匹配，且无任何重复。在本例中，用于系统事件。 |
 | L1MessagesSorter         | events_sort_dedup.rs         | 它重用了上面的电路，但这次是对用户生成的事件（L2 -> L1 消息）进行排序。 |
 | L1MessageHasher          | linear_hasher.rs             | 验证 L1 消息的线性哈希是否与队列的内容匹配。                 |
+| TransientStorageSorter   | Transient-storage-sort.rs    | 处理临时数据存储的排序                                       |
+| Secp256r1Verify          | Secp256r1-verify.rs          | 验证secp256r1 签名算法                                       |
+| EIP4844Repack            | Eip4844.rs                   | 与Eip4844 相关的电路                                         |
 
 3 recursive circuits:
 
