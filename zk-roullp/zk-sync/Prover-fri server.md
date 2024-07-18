@@ -79,7 +79,6 @@ Prover/prover_fri/src/main.rs
     }
     ```
   
-    
 * 启动GPU freature 的prover
   * 启动 `gpu_socket_listener::SocketListener` 监听 Witness Vector 接收 socket
   * 启动 `gpu_prover::Prover::run` 方法启动 GPU 加速的 FRI 证明生成器。
@@ -132,7 +131,6 @@ Prover/prover_fri/src/main.rs
     }
     ```
   
-    
   * `gpu_prover_availability_checker::availability_checker::AvailabilityChecker` 作为可用性检查器 (检查GPU prover 的状态,依赖于配置文件 `availability_check_interval_in_secs`)。(optional)
 
 TIP: 
@@ -184,18 +182,21 @@ TIP:
 * input table: `leaf_aggregation_jobs`
 * artifact/output table: `node_aggregation_jobs`
 * value in `aggregation_round` field of `prover_jobs` table: 1
+* 负责生成叶层聚合电路的 Witness，这些电路将基础电路 Witness 组合成更有效的证明结构。它将多个基础电路 Witness 合并为更紧凑的证明，提高证明效率和可伸缩性。
 
 #### NodeAggregationWitnessGenerator
 
 * 生成一个 NodeAggregation 类型的电路
 * input table: `leaf_aggregation_jobs`
 * value in `aggregation_round` field of `prover_jobs` table: 2
+* 负责生成节点层聚合电路的 Witness，这些电路将叶层聚合电路 Witness 组合成更高级别的证明结构。它进一步将叶层聚合电路 Witness 合并为更有效的证明，进一步提升证明效率和可伸缩性。
 
 #### SchedulerWitnessGenerator
 
 * 生成一个 Scheduler 类型的电路
 * input table: `scheduler_witness_jobs`
 * value in `aggregation_round` field of `prover_jobs` table: 3
+* 负责生成调度器电路的 Witness，该电路验证和处理 zkEVM 执行过程中的调度逻辑，它确保 zkEVM 正确执行，并防止欺诈行为发生。
 
 一轮证明生成包括：
 
@@ -210,3 +211,5 @@ TIP:
 ### Witness vector generator
 
 用于使用circuit生成witness generate并通过 TCP 将它们发送到证明。
+
+![prove fri](./prove fri.png)
