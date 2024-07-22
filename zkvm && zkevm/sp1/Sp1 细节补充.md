@@ -161,7 +161,7 @@ let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
         };
 ```
 
-这一步是用来本地生成/下载plonk电路组件的，需要用到的一个是prover.wrap_vk(StarkProveKey，sp1是基于starkmachine的)，一个则是ouer_proof (proof压缩之后的变种)，需要这两个关键的变量来生成plonk用到的组件。
+这一步是用来本地生成/下载plonk电路组件的，需要用到的一个是prover.wrap_vk(StarkProveKey，sp1是基于starkmachine的)，一个则是outer_proof (proof压缩之后的变种)，需要这两个关键的变量来生成plonk用到的组件。
 
 这里就需要回到prover构建的时候了，实际上就是Sp1Prover::new
 
@@ -257,7 +257,7 @@ let plonk_bn254_aritfacts = if sp1_prover::build::sp1_dev_mode() {
     }
 ```
 
-看不懂没关系，网上再倒一步直接豁然开朗了。
+看不懂没关系，往上再倒一步直接豁然开朗了。
 
 ```rust
 pub fn build_plonk_bn254_artifacts(
@@ -275,7 +275,7 @@ pub fn build_plonk_bn254_artifacts(
 一句话概括，这里做了个转换，使用之前构建的的warp_vk,以及proof 为依据，构建plonk的**constraints system**以及**witness**，存储到指定路径下，是为 `constraints.json`。
 
 下一步 plonk proof，因为这里才是ffi 调用gnark的部分。 将 plonk bn254 工件构建到给定的目录中。
-这可能需要一段时间，因为它需要先生成一个虚拟证明，然后需要编译电路。这一步也走完之后，就看时plonk proof的生成了
+这可能需要一段时间，因为它需要先生成一个虚拟证明，然后需要编译电路。这一步也走完之后，就看plonk proof的生成了
 
 recursion/gnark-ffi/go/sp1.go
 
@@ -437,7 +437,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 
 也就是使用CONSTRAINTS_JSON 来构建约束系统。之后就是proof生成以及验证的过程了（纯密码学的东西了）。
 
-再提一嘴，plonk 端的pk，vk 则是基于BN_256 曲线生成的，至于witness 直接从 CONSTRAINTS_JSON 获取就行了。
+再提一嘴，plonk 端的pk，vk 则是基于BN_254 曲线生成的，至于witness 直接从 CONSTRAINTS_JSON 获取就行了。
 
 ```go
 func Prove(dataDir string, witnessPath string) Proof {

@@ -106,6 +106,6 @@ groth16 proof generate && verify
 // 使用的是groth，曲线则是bn254
 10:20:07 DBG verifier done backend=groth16 curve=bn254 took=1.518334
 groth16 proof generate && verify success
-zk-snark demo Done
+demo Done
 ```
 
