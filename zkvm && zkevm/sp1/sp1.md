@@ -86,3 +86,9 @@ RUST_LOG=info cargo run --release
 烤机开始 ☺
 
 完成后，证明将保存在proof-with-io.json 文件中，并验证正确性。
+
+
+
+起初gnark-ffi 在Mac os 上link rust 是会报错的（arm芯片的精简指令集有关）
+
+https://github.com/succinctlabs/sp1/pull/842/files 对这个问题进行了修复。
