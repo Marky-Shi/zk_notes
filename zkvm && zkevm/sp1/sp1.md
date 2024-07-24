@@ -72,8 +72,6 @@ cargo prove build
 
 执行这个命令会生成 ELF（Executable and Linkable Format），包含了SP1 zkvm 执行的字节码
 
-
-
 ### Generate Proof
 
 ELF 文件放入 ZKVM中执行，而 script 中的代码则是生成证明、证明存储以及验证证明的逻辑。

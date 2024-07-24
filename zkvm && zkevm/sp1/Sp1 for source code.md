@@ -225,8 +225,6 @@ fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
 
 将核心证明分片，然后设置挑战节点，最后递归生成证明，验证之后再将这些分片链接在一起。
 
-
-
 #### Verify
 
 ```rust
