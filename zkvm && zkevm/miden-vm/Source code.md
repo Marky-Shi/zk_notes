@@ -348,6 +348,433 @@ fn generate_proof<E>(&self, mut trace: Self::Trace) -> Result<StarkProof, Prover
 > - **错误检测：** 如果计算过程中存在错误，那么在 LDE 域上评估 DEEP 组合多项式时，会产生不一致的结果，从而可以检测出错误。
 > - **FRI 证明：** FRI 证明是一种高效的交互式证明系统，它通过对多项式进行多次采样和比较来验证多项式的正确性。LDE 域为 FRI 证明提供了良好的基础。
 
+#### GPU加速 for mac
+
+让我们看看启用gpu加速之后会进行那些方面的加速吧
+
+```rust
+fn build_constraint_commitment<E: FieldElement<BaseField = Felt>>(
+        &self,
+        composition_poly_trace: CompositionPolyTrace<E>,
+        num_trace_poly_columns: usize,
+        domain: &StarkDomain<Felt>,
+    ) -> (ConstraintCommitment<E, Self::HashFn>, CompositionPoly<E>) {
+      // 初始化并评估组合多项式列
+      let composition_poly =
+            CompositionPoly::new(composition_poly_trace, domain, num_trace_poly_columns);
+      let blowup = domain.trace_to_lde_blowup();
+      // 计算LDE域的膨胀因子和评估偏移量。
+      let offsets =
+            get_evaluation_offsets::<E>(composition_poly.column_len(), blowup, domain.offset());
+      // 为之后的GPU处理做准备
+      let segments = Self::build_aligned_segements(
+            composition_poly.data(),
+            domain.trace_twiddles(),
+            &offsets,
+        );
+      
+      // 构建约束评估承诺
+      // 对求值结果的每一行进行哈希计算，得到一系列哈希值。
+      // 将这些哈希值构建成一棵 Merkle 树。树根就是最终的承诺（这部分实在gpu上完成的）
+      // 处理每个segment
+      for (segment_idx, segment) in segments.iter().enumerate() {
+            // 检查segment 是否需要填充
+            if rpo_padded_segment_idx.map_or(false, |pad_idx| pad_idx == segment_idx) {
+                // 复制并修改最后一个段，使用 Rpo256 的填充规则（“1”后跟“0”）。此处填充为1
+                rpo_padded_segment = unsafe { page_aligned_uninit_vector(lde_domain_size) };
+                rpo_padded_segment.copy_from_slice(segment);
+                
+                if self.metal_hash_fn == HashFn::Rpo256 {
+                    let rpo_pad_column = num_base_columns % RATE;
+                    rpo_padded_segment.iter_mut().for_each(|row| row[rpo_pad_column] = ONE);
+                }
+                row_hasher.update(&rpo_padded_segment);
+                assert_eq!(segments.len() - 1, segment_idx, "padded segment should be the last");
+                break;
+            }
+            row_hasher.update(segment);
+        }
+      
+       // 使用GPU 生成merkle tree
+        let composed_evaluations = RowMatrix::<E>::from_segments(segments, num_base_columns);
+        let nodes = block_on(tree_nodes).into_iter().map(|dig| H::Digest::from(&dig)).collect();
+        let leaves = row_hashes.into_iter().map(|dig| H::Digest::from(&dig)).collect();
+        let commitment = MerkleTree::<H>::from_raw_parts(nodes, leaves).unwrap();
+        let constraint_commitment = ConstraintCommitment::new(composed_evaluations, commitment);
+      (constraint_commitment, composition_poly)
+      
+}
+```
+
+这个方法主要用于构建约束评估的承诺。简单来说，它将一个复杂的数学问题（约束系统）转化为一个更小的、可验证的数字指纹。这个指纹可以用来验证原始数据的完整性，而无需重新计算整个复杂的系统。
+
+步骤：
+
+**评估约束多项式:**
+
+- 将表示约束系统的多项式在特定的域上进行求值。
+- 将求值结果按照特定的方式组织成矩阵或向量。
+
+**构建承诺:**
+
+- 对求值结果的每一行进行哈希计算，得到一系列哈希值。
+- 将这些哈希值构建成一棵 Merkle 树。
+- Merkle 树的根节点就是最终的承诺。
+
+而segment 它表示约束多项式在 LDE 域上求值的结果的一个片段。
+
+segment 的处理过程
+
+1. **分段求值:** 为了提高计算效率，通常将整个约束多项式分成多个片段，分别进行求值。每个片段对应一个 `segment`。
+2. **对齐:** 为了满足 GPU 处理的要求，这些 `segment` 需要进行对齐处理。这可能涉及填充、重新排列数据等操作。
+3. **哈希计算:** 每个 `segment` 都会被哈希成一个固定长度的值。这些哈希值随后会用来构建 Merkle 树。
+4. **构建 Merkle 树:** 将所有 `segment` 的哈希值作为叶子节点，构建一棵 Merkle 树。Merkle 树的根节点就是最终的承诺。
+
+分段处理的好处：
+
+* **提高并行性:** 将数据分段可以更好地利用 GPU 的并行计算能力，提高计算效率。
+* **降低内存占用:** 分段处理可以减少一次性加载到内存的数据量，从而降低内存占用。
+* **优化缓存利用率:** 分段处理可以更好地利用 CPU 和 GPU 的缓存，提高数据访问速度。
+
+
+
+### Verify
+
+该函数的主要目的是验证一个给定的程序执行是否正确，并返回其安全级别。
+
+```rust
+pub fn verify(
+    program_info: ProgramInfo,
+    stack_inputs: StackInputs,
+    stack_outputs: StackOutputs,
+    proof: ExecutionProof,
+) -> Result<u32, VerificationError> {
+  
+  // 从proof中获取安全级别
+  let security_level = proof.security_level();
+  //构建公共输入
+  let pub_inputs = PublicInputs::new(program_info, stack_inputs, stack_outputs);
+  let (hash_fn, proof) = proof.into_parts();
+  
+  // 根据不用的hash——fn 进行对应的验证
+  match hash_fn {
+    HashFunction::Blake3_192 => {
+      verify_proof::<ProcessorAir, Blake3_192, WinterRandomCoin<_>>(proof, pub_inputs, &opts)
+    }
+    HashFunction::Blake3_256 => {
+      verify_proof::<ProcessorAir, Blake3_256, WinterRandomCoin<_>>(proof, pub_inputs, &opts)
+    }
+    // 由于咱们之前使用的his Rpo256 hash-func 因此解析也是从这个匹配臂开始
+    HashFunction::Rpo256 => {
+      let opts = AcceptableOptions::OptionSet(vec![
+                ProvingOptions::RECURSIVE_96_BITS,
+                ProvingOptions::RECURSIVE_128_BITS,
+            ]);
+      verify_proof::<ProcessorAir, Rpo256, RpoRandomCoin>(proof, pub_inputs, &opts)
+    }
+    
+    HashFunction::Rpx256 => {
+      verify_proof::<ProcessorAir, Rpx256, RpxRandomCoin>(proof, pub_inputs, &opts)
+    }
+    
+  }
+  
+  Ok(security_level)
+}
+```
+
+```rust
+pub fn verify<AIR, HashFn, RandCoin>(
+    proof: Proof,
+    pub_inputs: AIR::PublicInputs,
+    acceptable_options: &AcceptableOptions,
+) -> Result<(), VerifierError>
+where
+    AIR: Air,
+    HashFn: ElementHasher<BaseField = AIR::BaseField>,
+    RandCoin: RandomCoin<BaseField = AIR::BaseField, Hasher = HashFn>,
+{
+  // 验证证明的参数
+  acceptable_options.validate::<HashFn>(&proof)?;
+  
+  // 构建公共随机数，初始种子是证明上下文和公共输入的哈希值，但随着协议的进展，币将使用从证明者收到的信息重新计算
+  let mut public_coin_seed = proof.context.to_elements();
+  public_coin_seed.append(&mut pub_inputs.to_elements());
+  
+  // 构建AIR实例，用于指定证明的计算
+  let air = AIR::new(proof.trace_info().clone(), pub_inputs, proof.options().clone());
+
+ 	//根据不同的域扩展字段选择不同的验证方式
+  match air.options().field_extension() {
+     FieldExtension::None => {
+       perform_verification::<AIR, AIR::BaseField, HashFn, RandCoin>(air, channel, public_coin)
+    },
+    // ^2
+    FieldExtension::Quadratic => {
+            if !<QuadExtension<AIR::BaseField>>::is_supported() {
+                return Err(VerifierError::UnsupportedFieldExtension(2));
+            }
+            let public_coin = RandCoin::new(&public_coin_seed);
+            let channel = VerifierChannel::new(&air, proof)?;
+            perform_verification::<AIR, QuadExtension<AIR::BaseField>, HashFn, RandCoin>(
+                air,
+                channel,
+                public_coin,
+            )
+        },
+    
+    
+    // ^3
+    FieldExtension::Cubic => {
+            if !<CubeExtension<AIR::BaseField>>::is_supported() {
+                return Err(VerifierError::UnsupportedFieldExtension(3));
+            }
+            let public_coin = RandCoin::new(&public_coin_seed);
+            let channel = VerifierChannel::new(&air, proof)?;
+            perform_verification::<AIR, CubeExtension<AIR::BaseField>, HashFn, RandCoin>(
+                air,
+                channel,
+                public_coin,
+            )
+        },
+  }
+}
+```
+
+由于咱们在例子中构建的时候选择是RPO256，因此这时候的匹配臂就是` FieldExtension::Quadratic => {`
+
+
+
+验证由 `VerifierChannel` 传递过来的证明数据是否正确。
+
+```rust
+fn perform_verification<A, E, H, R>(
+    air: A,
+    mut channel: VerifierChannel<E, H>,
+    mut public_coin: R,
+) -> Result<(), VerifierError>
+where
+    E: FieldElement<BaseField = A::BaseField>,
+    A: Air,
+    H: ElementHasher<BaseField = A::BaseField>,
+    R: RandomCoin<BaseField = A::BaseField, Hasher = H>,
+{
+  //1.证明者发送的对 LDE 域上的迹多项式求值的承诺。这些承诺用于更新公共硬币，并从public_cion中获取随机元素集。 每个先前的承诺都用于抽取构建下一个迹段所需的随机元素。最后一个迹承诺用于抽取一组随机系数，证明者使用这些系数来计算约束组合多项式。
+  const MAIN_TRACE_IDX: usize = 0;
+  const AUX_TRACE_IDX: usize = 1;
+  let trace_commitments = channel.read_trace_commitments();
+  public_coin.reseed(trace_commitments[MAIN_TRACE_IDX]);
+  
+  // 验证GRK 承诺包括验证GKR证明并生成所需的随机元素
+  // 处理辅助跟踪段（如果有），为每个段构建一组随机元素
+  let aux_trace_rand_elements = if air.trace_info().is_multi_segment() {
+    
+    if air.context().has_lagrange_kernel_aux_column() {
+      let gkr_proof = {
+                  let gkr_proof_serialized = channel
+                      .read_gkr_proof()
+      };
+      let lagrange_rand_elements = air
+                  .get_auxiliary_proof_verifier::<E>()
+                  .verify::<E, _>(gkr_proof, &mut public_coin)
+
+      let rand_elements = air.get_aux_rand_elements(&mut public_coin);
+      public_coin.reseed(trace_commitments[AUX_TRACE_IDX]);
+    }else{
+      let rand_elements = air.get_aux_rand_elements(&mut public_coin)
+      public_coin.reseed(trace_commitments[AUX_TRACE_IDX]);
+    }  
+  }
+  // 为组合多项式构建系数
+  let constraint_coeffs = air
+        .get_constraint_composition_coefficients(&mut public_coin)
+        .map_err(|_| VerifierError::RandomCoinError)?;
+  
+  // 2. 约束承诺
+  // 证明者发送的对 LDE 域上的约束组合多项式的求值的承诺，使其来更新public-coin，并从public-coin中获取一个域外点Z，在协议的交互式版本中，验证者将此点 z 发送给证明者，证明者在 z 处求迹和约束组合多项式，并将结果发送回验证者。
+  channel.read_constraint_commitment();
+  public_coin.reseed(constraint_commitment);
+  let z = public_coin.draw::<E>().map_err(|_| VerifierError::RandomCoinError)?;
+  
+  //3 一致性检查 检查在域外点评估的约束是否一致。
+  let ood_trace_frame = channel.read_ood_trace_frame();
+  let ood_constraint_evaluation_1 = evaluate_constraints(
+        &air,
+        constraint_coeffs,
+        &ood_main_trace_frame,
+        &ood_aux_trace_frame,
+        ood_lagrange_kernel_frame,
+        aux_trace_rand_elements.as_ref(),
+        z,
+    );
+    public_coin.reseed(ood_trace_frame.hash::<H>());
+  
+  // H(X) = \sum_{i=0}^{m-1} X^{i * l} H_i(X).
+  let ood_constraint_evaluations = channel.read_ood_constraint_evaluations();
+    let ood_constraint_evaluation_2 =
+        ood_constraint_evaluations
+            .iter()
+            .enumerate()
+            .fold(E::ZERO, |result, (i, &value)| {
+                result + z.exp_vartime(((i * (air.trace_length())) as u32).into()) * value
+            });
+    public_coin.reseed(H::hash_elements(&ood_constraint_evaluations));
+  
+  assert_eq!(ood_constraint_evaluation_1,ood_constraint_evaluation_2);
+  
+  //4 创建 FRI 证明验证器，用于后续的 FRI 验证。
+  let fri_verifier = FriVerifier::new(
+        &mut channel,
+        &mut public_coin,
+        air.options().to_fri_options(),
+        air.trace_poly_degree(),
+    )
+    .map_err(VerifierError::FriVerificationFailed)?;
+  
+  // 5 生成查询位置: 生成随机的查询位置
+  // 获取prover 发送的pow 随机数
+  channel.read_pow_nonce();
+  
+  // 从public_coin中获取 LDE 域的伪随机查询位置
+  public_coin
+        .draw_integers(air.options().num_queries(), air.lde_domain_size(), pow_nonce)
+        .map_err(|_| VerifierError::RandomCoinError)?;
+  
+  // 获取查询位置处的迹和约束组合多项式的评估值
+  channel.read_queried_trace_states(&query_positions)?;
+  channel.read_constraint_evaluations(&query_positions)?;
+  
+  //6 根据查询位置和之前计算的数据，计算 DEEP 组合多项式的评估值。
+  let composer = DeepComposer::new(&air, &query_positions, z, deep_coefficients);
+    let t_composition = composer.compose_trace_columns(
+        queried_main_trace_states,
+        queried_aux_trace_states,
+        ood_main_trace_frame,
+        ood_aux_trace_frame,
+        ood_lagrange_kernel_frame,
+    );
+    let c_composition = composer
+        .compose_constraint_evaluations(queried_constraint_evaluations, ood_constraint_evaluations);
+    let deep_evaluations = composer.combine_compositions(t_composition, c_composition);
+  
+  //7 验证 FRI 证明，验证deep多项式的低度性
+  // FriVerifier.verify：这个方法是 FRI 协议的验证器，通过迭代地降低多项式的度数，并检查每一层的正确性，最终验证多项式的低度性。
+  fri_verifier
+        .verify(&mut channel, &deep_evaluations, &query_positions)
+        .map_err(VerifierError::FriVerificationFailed)
+}
+```
+
+验证FRI证明中的每一层和余项多项式是否符合预期，通过递归检查每层的评估值、插值多项式以及线性组合。
+
+```rust
+ fn verify_generic<const N: usize>(
+        &self,
+        channel: &mut C,
+        evaluations: &[E],
+        positions: &[usize],
+    ) -> Result<(), VerifierError> {
+      // 参数准备
+      ... do something ...
+      
+      // 迭代 FRI 层: 对于每一层：
+      
+      //计算折叠后的查询位置。
+      let mut folded_positions =
+                fold_positions(&positions, domain_size, self.options.folding_factor());
+      
+      //从承诺中读取对应位置的评估值。
+      let layer_commitment = self.layer_commitments[depth];
+      let layer_values = channel.read_layer_queries(&position_indexes, &layer_commitment)?;
+      let query_values =
+                get_query_values::<E, N>(&layer_values, &positions, &folded_positions, domain_size);
+      
+      //验证评估值的一致性。
+      if evaluations != query_values {
+                return Err(VerifierError::InvalidLayerFolding(depth));
+            }
+      
+      // 为每个行多项式构建一组x坐标
+      let xs = folded_positions.iter().map(|&i| {
+                let xe = domain_generator.exp_vartime((i as u64).into()) * self.options.domain_offset();
+                folding_roots.iter()
+                    .map(|&r| E::from(xe * r))
+                    .collect::<Vec<_>>().try_into().unwrap()
+            })
+            .collect::<Vec<_>>();
+      
+      
+      // 插值x和y值到行多项式
+      polynom::interpolate_batch(&xs, &layer_values);
+      
+      //计算用于层折叠中的线性组合的伪随机值
+      let alpha = self.layer_alphas[depth];
+      
+      
+      // 检查在alpha处评估多项式时，结果是否等于相应的列值
+      evaluations = row_polys.iter().map(|p| polynom::eval(p, alpha)).collect();
+      
+      
+      //确保下一次度数减少不会导致度数截断
+      max_degree_plus_1 % N != 0 
+      
+    
+      domain_generator = domain_generator.exp_vartime((N as u32).into());
+            max_degree_plus_1 /= N;
+            domain_size /= N;
+            mem::swap(&mut positions, &mut folded_positions);
+    
+     
+     // 验证最终层的余项多项式是否符合度数要求。
+     // 从channel读取余项多项式，并确保其与上一层的评估一致。
+     channel.read_remainder()?;
+     if remainder_poly.len() > max_degree_plus_1 {
+            return Err(VerifierError::RemainderDegreeMismatch(max_degree_plus_1 - 1));
+       } 
+     
+      for (&position, evaluation) in positions.iter().zip(evaluations) {
+            let comp_eval = eval_horner::<E>(
+                &remainder_poly,
+                offset * domain_generator.exp_vartime((position as u64).into()),
+            );
+            if comp_eval != evaluation {
+                return Err(VerifierError::InvalidRemainderFolding);
+            }
+        }  
+}
+```
+
+细节
+
+- **折叠操作:** 使用 `fold_positions` 函数将原始查询位置映射到折叠后的域上的位置。
+- **Merkle 树查询:** 使用 `channel.read_layer_queries` 从承诺中读取对应位置的评估值。
+- **多项式插值:** 使用 `polynom::interpolate_batch` 将评估点插值成多项式。
+- **度数检查:** 验证每一层的度数是否符合要求。
+- **余项验证:** 检查最终层的余项多项式是否满足度数限制。
+
+关键概念
+
+- **FRI 协议:** 一种用于验证多项式低度性的交互式证明协议。
+- **折叠操作:** 将多项式在更小的域上进行评估，以降低度数。
+- **查询点:** 验证者随机选择的点，用于验证多项式的正确性。
+- **Merkle 树:** 用于存储多项式评估值的承诺。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
