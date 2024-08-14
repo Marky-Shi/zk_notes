@@ -83,7 +83,7 @@ core/src/stark/machine.rs
 
 从setup的过程可以看出，pk，vk生成的过程实际上就是记录自定义程序执行过程堆栈信息，以及多项式承诺，chip处理的顺序。换言之就是将自定义的程序转换为只有zkp（此处是plonk）可以构建的zk电路并且用来生成proof。理解这个前提之后，咱们继续往下看。
 
-接着setup完了之后，接着就到了prove阶段了，这个还是很有意思的，sp1中包含三种类型的proof（想啥呢，不是stark/snark之分啊，那是next next next step了）由于之前总结过了证明生成的整个过程，因此本片中会略过这一步骤的。
+接着setup完了之后，接着就到了prove阶段了，这个还是很有意思的，sp1中包含三种类型的proof（想啥呢，不是stark/snark之分啊，那是next next next step了）由于之前总结过了证明生成的整个过程，因此本篇中会略过这一步骤的。
 
 以local prover 为例
 
