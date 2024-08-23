@@ -158,10 +158,6 @@ pub struct StateCircuit<F> {
 
 
 
-
-
-
-
 ## EVM Proof
 
 通过验证块中包含的所有交易是否具有正确的执行结果来证明状态树根的转换是否有效。

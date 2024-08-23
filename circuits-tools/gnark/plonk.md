@@ -790,12 +790,6 @@ func BatchOpenSinglePoint(polynomials [][]fr.Element, digests []Digest, point fr
 * KZG 批量打开可以同时高效地验证多个多项式在同一个点。
 * 该过程依赖于挑战的生成、折叠评估值和折叠多项式的计算，以及最终承诺的生成。
 
-
-
-
-
-
-
 ### verify
 
 ```go
