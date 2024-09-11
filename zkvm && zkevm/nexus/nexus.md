@@ -4,34 +4,12 @@
 
 Nexus zkVM 架构有两个主要组件：Nexus 虚拟机和 Nexus Proof 系统。
 
-
-
 setup
 
 ```shell
 rustup target add riscv32i-unknown-none-elf
 
 cargo install --git https://github.com/nexus-xyz/nexus-zkvm cargo-nexus --tag 'v0.2.3'
-```
-
-example
-
-```shell
-cargo nexus host project-name 
-host-project ±master⚡ » tree 
-.
-├── Cargo.lock
-├── Cargo.toml
-└── src
-    ├── guest
-    │   ├── Cargo.toml
-    │   ├── rust-toolchain.toml
-    │   └── src
-    │       └── main.rs  // user defined program 
-    └── main.rs // prove && verify
-
-4 directories, 6 files
-
 ```
 
 ### VM Architecture
@@ -76,7 +54,41 @@ Nexus VM 指令集共包含 41 条指令。 每条指令通过一个助记符指
 
 一旦 P 完全加载到内存中，使用内存当前状态的 Merkle Root 作为证明系统执行步骤的公共输入。
 
+##### Public paramaters in nexus zkvm
 
+PP 在整个系统用于生成、验证和管理证明的基本加密值和结构。这些参数是在受信任的设置（或其他初始化过程）期间生成的，并在零知识证明系统的所有参与者之间共享。
+
+##### component of PP 
+
+* Elliptic Curve Parameters (G1,G2):Nexus ZKVM 使用椭圆曲线加密技术，公共参数包括曲线特定的细节，例如椭圆曲线 G1 和 G2 上的生成器和群元素。这些通常用于基于配对的加密技术，其中涉及两个组（G1 和 G2）的曲线。
+* Commitment Scheme Parameters(C1,C2):承诺方案用于隐藏某些值，但仍允许稍后验证它们。这些承诺方案的参数（G1 ---> C1、G2 -----> C2）是PP的一部分。
+* Random Oracle Configuration 涉及加密哈希函数或随机预言机，它们充当可公开验证的函数，可确定性地将输入映射到看似随机的输出。随机预言机的配置（例如，使用 SHA-256 或其他哈希函数）是PP的一部分.确保证明的不可延展性，并可用于 Fiat-Shamir 转换，使交互式协议变得非交互式。
+* Circuit Shape/Description 参数定义了计算的结构（例如，约束如何构建，输入和输出如何排列），这对于证明者和验证者在系统内运行都是必要的。
+* Secondary Circuit Parameters 在处理多个电路的递归证明系统中（例如 Nova 和 HyperNova），通常存在与证明的不同层相对应的次级电路参数。这些参数有助于管理递归证明中各个步骤之间的转换。
+
+```rust
+pub struct PublicParams<G1, G2, C1, C2, RO, SC, SP>
+where
+    G1: SWCurveConfig,
+    G2: SWCurveConfig,
+    C1: PolyCommitmentScheme<Projective<G1>>,
+    C2: CommitmentScheme<Projective<G2>>,
+    RO: CryptographicSponge + Sync,
+    RO::Config: CanonicalSerialize + CanonicalDeserialize + Sync,
+    SC: StepCircuit<G1::ScalarField>,
+    SP: Send + Sync,
+{
+    pub ro_config: RO::Config,
+    pub shape: CCSShape<G1>,
+    pub shape_secondary: R1CSShape<G2>,
+    pub ck: C1::PolyCommitmentKey,
+    pub pp_secondary: C2::PP,
+    pub digest: G1::ScalarField,
+
+    pub _step_circuit: PhantomData<SC>,
+    pub _setup_params: PhantomData<SP>,
+}
+```
 
 #### Program execution
 
@@ -92,9 +104,29 @@ Nova 的一个主要优点是它具有较小的递归开销，这表示除了证
 
 就证明者成本而言，证明者在每个折叠步骤中最昂贵的工作是**计算两个多标量乘法（MSM）**，其大小与  F. 这是因为证明者需要使用 Pedersen 承诺方案在每个折叠步骤中承诺两个大见证向量。尽管是证明生成中计算成本最高的部分，但该计算是高度可并行的。
 
-
-
 Nexus zkVM 使用配对友好的 bn254（作为主曲线（也称为 bn128 或 bn256）来实现 Nova 折叠方案。因为后者在以太坊上有预编译支持。此外，由于 bn254 形成 2-cycle 与 grumpkin曲线一起，grumpkin 用作辅助曲线。
+
+
+
+#### IVC Incrementally Verifiable Computation Proof
+
+IVC Nexus ZKVM 中用于表示递归计算过程的证明结构。
+
+* 在逐步执行计算时逐步生成证明的技术。IVC 不是在最后为整个计算生成一个证明，而是允许为每个步骤生成一个证明，并且可以递归地组合这些证明。
+* 封装计算的状态，包括中间步骤，并允许逐步证明和验证这些步骤。每次计算新步骤时，都会更新证明，无需重新执行整个计算即可验证结果。
+
+
+
+##### Hyper Nova && Nova 
+
+* Nova 是一种基础递归 SNARK协议，允许增量生成证明。它旨在实现增量可验证计算 (IVC)，其中计算的每个步骤都会生成一个证明，该证明可以与之前步骤的证明相结合
+  * 在 Nexus ZKVM 中，Nova 用于处理递归证明，将大型计算拆分为多个步骤。每个步骤都会为该计算部分生成一个证明，并且这些证明可以有效地组合成一个证明。即使底层计算很长或很复杂，Nova 的方法也能确保最终证明保持简洁。
+* HyperNova 是 Nova 的扩展或改进。它利用更先进的技术进一步提高了证明效率和可扩展性，有可能实现更紧凑的证明和更快的验证时间。
+  * HyperNova 通常专注于优化证明系统，以用于更大或更复杂的应用程序。在 Nexus ZKVM 中，HyperNova 将应用于 Nova 性能可能不足的场景，提供改进的证明压缩和验证速度，尤其是在**处理递归电路或嵌套计算**时。
+
+总结：
+
+Nova 是用于增量证明生成的基础递归 SNARK，而 HyperNova 则在 Nova 的基础上进行了进一步的优化和提升。IVCProof 是 Nexus ZKVM 中的核心证明对象，它封装了递归证明过程，从而实现了可扩展和可验证的计算。
 
 
 
