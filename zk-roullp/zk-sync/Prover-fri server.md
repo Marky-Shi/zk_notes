@@ -154,7 +154,7 @@ TIP:
   * **Proof:** 可用于通用计算，涵盖证明生成过程中的所有数据，更易于理解和调试
   * **GpuProof:** 经过专门针对 GPU 计算优化的处理，可以提高证明生成过程的效率，但可读性和可移植性不如 **Proof**。
 
-### Prover fri Compressor 
+### Prover fri Compressor
 
 将 FRI 证明压缩为发送到 L1 的 Bellman 证明。
 

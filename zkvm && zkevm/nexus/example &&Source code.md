@@ -419,8 +419,6 @@ fn prove(self, pp: &Self::Params) -> Result<Self::Proof, Self::Error>
   * Output 
   * logs
 
-
-
 ```rust
 pub fn prove_seq(pp: &SeqPP, trace: Trace) -> Result<IVCProof, ProofError> {
     let tr = init_circuit_trace(trace)?;
