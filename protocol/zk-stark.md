@@ -26,9 +26,11 @@ ZK-Starks 将计算转换为多项式，利用多项式在有限域上的运算�
 
 **ZK-STARKs 通过 FRI 和其他优化技术实现了高效的验证过程。FFT（Fast Fourier Transform） 的使用使多项式运算更加高效，而 GPU 加速进一步提升了计算性能。这些优化使得 ZK-STARKs 能够处理大规模数据和复杂计算，同时保持高效的证明生成和验证过程。**
 
+[【zkMIPS系列】FRI原理及其应用分析 | 登链社区 | 区块链技术社区 (learnblockchain.cn)](https://learnblockchain.cn/article/9800)
 
 
-### 步骤：
+
+### Stark步骤：
 
 1. 将计算表示为多项式约束/方程系统。这可能是**代数中间表示 (AIR) 或 Plonkish 算术化**
 2. 根据计算过程生成一个执行轨迹，执行轨迹是一个矩阵，每一行代表一个计算步骤，每一列代表一个寄存器或状态变量。
