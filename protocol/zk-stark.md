@@ -1,6 +1,6 @@
 ## zk-stark
 
-zk-STARK（Zero-Knowledge Succinct Transparent Argument of Knowledge）并不直接依赖于哈希碰撞。它的证明机制基于多项式和线性代数，尤其是FRI（Fast Reed-Solomon Interactive Oracle Proof）子协议，用于确保**证明的完整性和正确性**。FRI阶段涉及对多项式的度进行**递归约束**，而不是寻找或避免哈希碰撞。
+zk-STARK（Zero-Knowledge Succinct Transparent Argument of Knowledge）并不直接依赖于哈希碰撞。它的证明机制基于**多项式和线性代数**，尤其是FRI（Fast Reed-Solomon Interactive Oracle Proof）子协议，用于确保**证明的完整性和正确性**。FRI阶段涉及对多项式的度进行**递归约束**，而不是寻找或避免哈希碰撞。
 
 在STARK中，**计算过程被转换成一组多项式方程，然后通过傅里叶变换进行处理**。这个过程可以产生一个简洁的证明，该证明可以被任何人验证，而且不需要信任设置（与zk-SNARKs不同，后者通常需要一个初始化的信任设置阶段）。虽然哈希函数在STARKs中仍然有作用，例如用于随机化或者作为部分输入的指纹，但它们并不是核心的证明机制。
 
