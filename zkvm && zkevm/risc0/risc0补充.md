@@ -35,3 +35,26 @@ Risc0 zkvm 系统由三个电路组成
 * `join`程序使用递归证明器验证来自递归证明器的两个证明。通过重复应用join，同一session内执行跨度的任意数量的receipt都可以压缩为整个session的单个receipt。
 * Identity_p254 程序使用递归证明器和 Poseidon254 哈希函数来验证来自递归证明器的证明。在运行 Groth16 证明者之前，identity_p254 程序用作证明者管道中的最后一步。
 
+
+
+### build error
+
+在根目录下执行 `cargo check` 遇到的问题
+
+```shell
+dyld[76613]: Library not loaded: @rpath/libstd-0f9bda72675979e4.dylib
+```
+
+缺失xxx.dylib （这个库是 Rust 标准库的一部分，提供了一些基础的函数和类型。 ）这个问题本质上是在rust安装时环境变量设置出错，导致找不到这个库。
+
+解决方法
+
+macOS ./zsh.rc
+
+```shell
+source "$HOME/.cargo/env"
+export RUST_SRC_PATH="$(rustc --print sysroot)/lib/rustlib/src/rust/src"
+export DYLD_LIBRARY_PATH="$(rustc --print sysroot)/lib:$DYLD_LIBRARY_PATH"
+```
+
+导入这个环境变量，重新配置，之后就可以了。
