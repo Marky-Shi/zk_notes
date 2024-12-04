@@ -1,6 +1,6 @@
 # Sp1  machine workflow
 
-[日志详情](https://github.com/Chengcheng-S/sp1_demo/blob/master/fibo/run.log)
+[日志详情](https://github.com/Marky-Shi/sp1_demo/blob/master/fibo/run.log)
 
 本节主要探究sp1 程序编译且验证过程中各个模块之间协作。上述的日志则是参考标准，这是一个简单的fibonacci 程序，日志详细的记录了每一步的操作。在自定义的程序编译为elf文件之后，会很好奇proof是如何生成以及被验证的，之前的笔记中已经记录了prove/verify 的各个步骤（当然这只是zk后端的事情）。因为sp1 是个zkvm，还有前端是如何处理这个elf文件的，是由哪几个组件组成的？他们之间又是如何协作的呢？
 

@@ -1,6 +1,6 @@
 # `Risc0`example project
 
-详细的[日志]([risc0-code/hello/run.log at main · Chengcheng-S/risc0-code (github.com)](https://github.com/Chengcheng-S/risc0-code/blob/main/hello/run.log))可以查看
+详细的[日志](https://github.com/Marky-Shi/risc0-code/blob/main/hello/run.log)可以查看
 
 Example
 
