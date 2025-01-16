@@ -8,7 +8,7 @@ curl -L https://sp1.succinct.xyz | bash
 source ~/.bashrc
 
 // mac os
-source /Users/scc/.zshenv
+source ~/.zshenv
 
 sp1up
 
