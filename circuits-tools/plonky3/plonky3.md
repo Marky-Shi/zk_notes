@@ -1,101 +1,134 @@
-## plonky3
+# Plonky3
 
-Git: git@github.com:Plonky3/Plonky3.git
+## 简介
 
-Plonky3 是一个用于设计自定义 ZK 证明实现的工具包，可用于为应用程序优化的 zkVM 和 zkEVM 提供支持（如sp1,这部分可以去了解sp1源码中 stark machine 以及各个chip的具体实现）。同时也支持多个有限域和哈希函数。
+Plonky3 专为设计自定义 ZK 证明实现而打造，可用于为应用程序优化的 zkVM 和 zkEVM 提供支持（如 sp1，这部分可以去了解 sp1 源码中 stark machine 以及各个 chip 的具体实现）。
 
-### Workflow
+Plonky3 的主要特点：
+- **模块化设计**：提供了一系列可组合的组件，开发者可以根据需求自由组合
+- **多域支持**：支持多个有限域和哈希函数，增强了灵活性
+- **高性能**：针对递归证明进行了优化，提供更高效的证明生成和验证
+- **开源**：完全开源，允许社区贡献和改进
 
-1. 使用AIR 定义业务逻辑
-2. 生成基于AIR的计算轨迹
-3. 利用高效的有限域实现进行算术运算
-4. 使用向量承诺方案（如 MMCS）来创建对轨迹的简洁承诺。
-5. 构造轨迹多项式，并使用多项式承诺方案（如 Circle PCS）提交这些多项式
-6. 使用 FFT 和相关算法执行快速多项式运算。
-7. 实现 FRI（快速 Reed-Solomon IOP）协议来证明有关承诺多项式的属性。
-8. 对于非交互式证明，采用 Fiat-Shamir 方法和挑战者机制。
-9. 使用STARK prover 将所有组件结合起来生成证明。
-10. 验证者使用相同的组件来有效地检查证明的有效性。
+Git 仓库：`git@github.com:Plonky3/Plonky3.git`
 
->  TIP:
->
->  没错plonky3 具体的工作流程和stark 证明系统的工作流程很类似，都是使用AIR以及轨迹多项式，同样也使用了FRI protocol。
->
->  但是二者之间也是有些差异的：
->
->  ​	**算法设计**：Plonky3 使用了一种混合型架构，将基于加法的 Plonkish 框架和 AIR 结合，从而具有灵活的约束表达力。这使得 Plonky3 能够在保证证明性能的同时更好地表达复杂电路。
->
->  ​	**多项式承诺方案**：Plonky3 还可能采用不同的多项式承诺方案，以提高效率，或结合其他优化策略（如使用更高效的散列函数），这与一些标准 STARK 实现可能有所不同。
->
->  ​	**领域适配性**：STARK 通常应用于需要高并发计算的环境，而 Plonky3 的混合特性使其更适合处理结构化的、基于分层电路的任务。
->
->  总结：
->
->  **STARK 和 Plonky3 都依赖 FRI 来验证多项式，但 STARK 的哈希函数使用更加广泛，其核心在于透明验证（无需可信设置），而 Plonky3 则倾向于借助 FRI 和递归技术，优化局部约束表达和证明生成效率**
->
->  | types              | plonky3 AIR                                                  | stark air                                                    |
->  | ------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
->  | 目标               | 高效支持递归证明，灵活处理嵌套计算                           | 描述大规模状态演变，适合高吞吐量计算                         |
->  | 多项式承诺         | 基于FRI，但针对递归证明优化                                  | 基于FRI，但是针对于透明性以及安全性                          |
->  | 计算表达能力       | 支持复杂电路设计和动态约束调整                               | 偏向于描述**系统全局**的状态转换                             |
->  | 设计重点           | 递归优化、支持自定义门、模块化设计                           | 并行性、透明性、抗量子安全                                   |
->  | 递归证明           | 递归优化                                                     | 无                                                           |
->  | 证明大小和验证时间 | proof size 相对较小，验证时间因递归优化在处理复杂嵌套计算时较有优势 | 证明大小可能较大，验证时间受多项式插值和哈希计算影响，并行性可缓解 |
->  | 适用的计算类型     | 擅长处理复杂密码学协议、智能合约中的条件分支与循环等逻辑     | 适用于区块链区块状态更新、分布式账本大规模交易记录验证等状态演变 |
->
->  
+## 工作流程
 
-对于开发者而言，只需要着重关注前两步即可，之后的步骤交给stark prover 处理就行了。
+Plonky3 的完整工作流程包括以下步骤：
 
-### example
-一个基于plonky3的fibonacci示例。
+1. **定义 AIR 业务逻辑**：使用代数中间表示（AIR）定义计算约束
+2. **生成计算轨迹**：基于 AIR 生成完整的计算执行轨迹
+3. **有限域运算**：利用高效的有限域实现进行算术运算
+4. **向量承诺**：使用向量承诺方案（如 MMCS）来创建对轨迹的简洁承诺
+5. **多项式构造与承诺**：构造轨迹多项式，并使用多项式承诺方案（如 Circle PCS）提交这些多项式
+6. **多项式运算**：使用 FFT 和相关算法执行快速多项式运算
+7. **FRI 协议实现**：实现快速 Reed-Solomon IOP (FRI) 协议来证明有关承诺多项式的属性
+8. **非交互式转换**：对于非交互式证明，采用 Fiat-Shamir 方法和挑战者机制
+9. **证明生成**：使用 STARK prover 将所有组件结合起来生成证明
+10. **证明验证**：验证者使用相同的组件来有效地检查证明的有效性
 
-#### 定义AIR的逻辑
+对于开发者而言，只需要着重关注前两步（定义 AIR 和生成计算轨迹）即可，之后的步骤交给 STARK prover 处理。
 
-AIR Constraint 是关于处理执行trace的，可以将其抽象为 2D矩阵。**每行代表计算的当前迭代，每行的宽度代表与整个计算相关的元素**。基本上，在 zkVM 上下文中，**行的宽度是这个 zkVM 系统中的所有寄存器，每一行迭代是所有寄存器从一个 PC 计数到下一个的转换。**
+## AIR (Algebraic Intermediate Representation)
 
-> Tip :
->
-> * 定义有效的状态转换，行与行之间转换的约束
-> * 如果需要，定义同一行中字段之间的关系，有时我们的约束也只针对单个列，比如如果某列应该是 0 或 1，我们执行 x (x - 1) = 0（或 assert_bool() 简写）
-> * 如果程序必须从特定的初始状态开始运行，则定义初始状态的约束
-> * 如果程序结果需要在该程序执行结束时公开，则定义对结束状态的约束。、
+AIR 是一种代数中间表示，用于描述计算的约束条件。在 Plonky3 中，AIR 是构建零知识证明的基础。
 
-在当前的fibo的例子中，每行是当前要添加的 2 个数字，因此宽度为 2。每行都会有一个关系：
+### AIR 的核心概念
 
-* 当前行的第二个field是下一行的第一个field
-* 当前行的两个field之和等于下一行的第二个field
-* 程序的初始状态 确保是从0｜1 开始，验证输出是否符合预期即可。
+AIR 将计算表示为一个二维矩阵（执行轨迹），其中：
+- **行**：代表计算的每一步或迭代
+- **列**：代表计算状态的各个组成部分（如寄存器、内存等）
+
+AIR 约束主要分为三类：
+1. **转换约束**：描述从一行到下一行的状态转换规则
+2. **一致性约束**：确保同一行中不同列之间的关系
+3. **边界约束**：指定初始状态和最终状态的条件
+
+### AIR 与传统电路的区别
+
+与传统的布尔或算术电路相比，AIR 提供了更高层次的抽象：
+- **更自然的表达**：更接近程序执行的实际流程
+- **更高效的证明**：可以利用计算的结构特性生成更高效的证明
+- **更灵活的约束**：可以表达更复杂的计算关系
+
+## Plonky3 vs STARK
+
+>  Plonky3 的工作流程和 STARK 证明系统的工作流程很类似，都使用 AIR 以及轨迹多项式，同样也使用了 FRI protocol。但二者之间也有一些重要差异：
+
+### 算法设计
+Plonky3 使用了一种混合型架构，将基于加法的 Plonkish 框架和 AIR 结合，从而具有灵活的约束表达力。这使得 Plonky3 能够在保证证明性能的同时更好地表达复杂电路。
+
+### 多项式承诺方案
+Plonky3 采用不同的多项式承诺方案，以提高效率，或结合其他优化策略（如使用更高效的散列函数），这与一些标准 STARK 实现有所不同。
+
+### 领域适配性
+STARK 通常应用于需要高并发计算的环境，而 Plonky3 的混合特性使其更适合处理结构化的、基于分层电路的任务。
+
+### 详细比较
+
+| 特性 | Plonky3 AIR | STARK AIR |
+|------|------------|-----------|
+| 目标 | 高效支持递归证明，灵活处理嵌套计算 | 描述大规模状态演变，适合高吞吐量计算 |
+| 多项式承诺 | 基于 FRI，但针对递归证明优化 | 基于 FRI，但针对透明性以及安全性 |
+| 计算表达能力 | 支持复杂电路设计和动态约束调整 | 偏向于描述**系统全局**的状态转换 |
+| 设计重点 | 递归优化、支持自定义门、模块化设计 | 并行性、透明性、抗量子安全 |
+| 递归证明 | 原生支持递归优化 | 通常不直接支持递归 |
+| 证明大小和验证时间 | 证明大小相对较小，验证时间因递归优化在处理复杂嵌套计算时较有优势 | 证明大小可能较大，验证时间受多项式插值和哈希计算影响，并行性可缓解 |
+| 适用的计算类型 | 擅长处理复杂密码学协议、智能合约中的条件分支与循环等逻辑 | 适用于区块链区块状态更新、分布式账本大规模交易记录验证等状态演变 |
+
+**总结**：STARK 和 Plonky3 都依赖 FRI 来验证多项式，但 STARK 的哈希函数使用更加广泛，其核心在于透明验证（无需可信设置），而 Plonky3 则倾向于借助 FRI 和递归技术，优化局部约束表达和证明生成效率。
+
+## 实例：Fibonacci 序列证明
+
+下面通过一个 Fibonacci 序列的例子来展示 Plonky3 的使用方法。
+
+### 1. 定义 AIR 逻辑
+
+AIR Constraint 是关于处理执行轨迹的，可以将其抽象为 2D 矩阵。**每行代表计算的当前迭代，每行的宽度代表与整个计算相关的元素**。在 zkVM 上下文中，**行的宽度是这个 zkVM 系统中的所有寄存器，每一行迭代是所有寄存器从一个 PC 计数到下一个的转换**。
+
+在设计 AIR 约束时，需要考虑以下几点：
+- 定义有效的状态转换，即行与行之间转换的约束
+- 如果需要，定义同一行中字段之间的关系
+- 如果程序必须从特定的初始状态开始运行，则定义初始状态的约束
+- 如果程序结果需要在该程序执行结束时公开，则定义对结束状态的约束
+
+在 Fibonacci 示例中，每行包含当前要添加的 2 个数字，因此宽度为 2。每行都有以下关系：
+- 当前行的第二个 field 是下一行的第一个 field
+- 当前行的两个 field 之和等于下一行的第二个 field
+- 程序的初始状态确保是从 0|1 开始，验证输出是否符合预期
 
 ```rust
-pub struct MyAir{
+pub struct MyAir {
     pub num_steps: usize,
-    pub final_value:u32,
+    pub final_value: u32,
 }
 
-impl<F:Field> BaseAir<F> for MyAir{
-    fn width(&self) -> usize{
-        2 // NUM_FIBONACCI_COLS
+impl<F: Field> BaseAir<F> for MyAir {
+    fn width(&self) -> usize {
+        2 // NUM_FIBONACCI_COLS - 表示轨迹矩阵的宽度为2列
     }    
 }
 
-// our constraints
-impl<AB: AirBuilder> Air<AB> for MyAir{
+// 定义我们的约束条件
+impl<AB: AirBuilder> Air<AB> for MyAir {
     fn eval(&self, builder: &mut AB) {
+        // 获取主轨迹矩阵
         let main = builder.main();
+        // 获取当前行和下一行
         let local = main.row_slice(0);
         let next = main.row_slice(1);
 
-      	// init local[0] = 0. local[1] = 1
+        // 初始状态约束：第一行必须是 [0, 1]
         builder.when_first_row().assert_eq(local[0], AB::Expr::ZERO);
         builder.when_first_row().assert_eq(local[1], AB::Expr::ONE);
-		
-        // Enforce state transition constraints
-       // next[0] = local[1]   next[1] = local[0] + local[1]
+        
+        // 状态转换约束
+        // 1. next[0] = local[1] - 下一行的第一个数等于当前行的第二个数
         builder.when_transition().assert_eq(next[0], local[1]);
+        // 2. next[1] = local[0] + local[1] - 下一行的第二个数等于当前行两数之和
         builder.when_transition().assert_eq(next[1], local[0] + local[1]);
 
-        // Constrain the final value
+        // 最终值约束：最后一行的第二个数必须等于指定的最终值
         let final_value = AB::Expr::from_canonical_u32(self.final_value);
         builder.when_last_row().assert_eq(local[1], final_value);
     }
@@ -296,8 +329,6 @@ challenger.observe(quotient_commit.clone());
 
 prove workflow
 
-
-
 ```mermaid
 flowchart TD
     A[Start prove function] --> B[Check_Constraints if debug mode]
@@ -329,10 +360,6 @@ flowchart TD
     H --> I[Open Commitments at Zeta]
     I --> J[Assemble and Return Proof]
 ```
-
-
-
-
 
 ### Verify 
 
@@ -414,7 +441,7 @@ flowchart TD
     subgraph "Calculate Quotient and Fold Constraints"
         L1[Calculate Quotient Using Zps and Monomials]
         L --> L1
-        L1 --> L2[Calculate Selectors at zeta]
+        L1 --> L2[Calculate selectors at zeta]
         L2 --> L3[Initialize VerifierConstraintFolder]
         L3 --> L4[Evaluate AIR Constraints with Folder]
         L4 --> L5[Calculate folded_constraints]
@@ -479,4 +506,3 @@ flowchart TD
     F7 --> F8[Return InputError if deep quotient reduction fails]
     H --> H1[Return FirstLayerMmcsError if first layer verification fails]
 ```
-
