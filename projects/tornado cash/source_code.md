@@ -43,11 +43,47 @@ Commitment 在 Tornado Cash 中的作用：
 - **实现隐私提款：** 用户在提款时需要提供与 commitment 对应的 nullifier 和 secret，并生成一个零知识证明，证明自己拥有这些信息，而无需实际透露这些信息。合约会验证零知识证明和 nullifier 是否未被使用过，如果验证通过，则允许用户提取资金。
 - **防止双重支付：** 通过记录已使用的 nullifier，可以防止同一笔存款被多次提取。
 
+### Relayer机制详解
+
+Tornado Cash的一个关键创新是引入了Relayer机制，解决了隐私交易的"最后一公里"问题。
+
+#### 问题背景
+
+当用户想要从Tornado Cash提取资金时，面临一个困境：新地址没有ETH支付gas费，而使用原地址支付gas会泄露隐私关联。
+
+#### Relayer工作原理
+
+Relayer是第三方服务，代表用户提交提款交易并支付gas费，从提取的金额中收取一定费用作为补偿。
+
+```solidity
+function _processWithdraw(
+    address payable _recipient,
+    address payable _relayer,
+    uint256 _fee,
+    uint256 _refund
+) internal {
+    // 计算实际发送给接收者的金额
+    uint256 amount = denomination - _fee;
+    
+    // 发送主要金额给接收者
+    (bool success, ) = _recipient.call{value: amount}("");
+    require(success, "Transfer to recipient failed");
+    
+    // 如果有relayer，支付费用给relayer
+    if (_fee > 0) {
+        (success, ) = _relayer.call{value: _fee}("");
+        require(success, "Transfer to relayer failed");
+    }
+    
+    // 处理可能的ETH退款
+    if (_refund > 0) {
+        (success, ) = msg.sender.call{value: _refund}("");
+        require(success, "Refund failed");
+    }
+}
+```
+
 #### _insert
-
-
-
-
 
 ```mermaid
 flowchart TD
@@ -100,6 +136,26 @@ function _insert(bytes32 _leaf) internal returns (uint32 index) {
     return _nextIndex;
 }
 ```
+经济安全性分析
+Relayer系统形成了一个双边市场：
+
+1. 博弈论分析 ：
+   
+   - Relayer之间的竞争确保了合理的费用水平
+   - 用户可以选择费用最低的Relayer
+   - Relayer有激励提供可靠服务以获得更多业务
+2. 攻击向量 ：
+   
+   - Relayer无法窃取资金，因为提款证明已经指定了接收者地址
+   - Relayer可能拒绝服务，但无法窃取或篡改交易
+   - 恶意Relayer可能尝试关联提款与存款，但通过适当的操作可以缓解
+3. 隐私增强技术 ：
+   
+   - 时间混淆：用户可以随机延迟提款
+   - 金额混淆：将大额存款分成多个标准面额
+   - Relayer轮换：使用多个Relayer服务
+   - Tor或VPN：隐藏IP地址
+Relayer机制是一个优雅的解决方案，允许完全匿名的交易，同时保持与以太坊网络的兼容性，无需修改协议层。
 
 
 
@@ -155,7 +211,7 @@ flowchart TD
 
 ### zkp
 
-Tornado  cash 使用的是circom 为zk后端，将电路编译为sol（verify.sol）直接存储在L1上，具体的可以参照circom 的文档
+Tornado cash 使用的是circom 为zk后端，将电路编译为sol（verify.sol）直接存储在L1上，具体的可以参照circom 的文档
 
 计算 `Pedersen(nullifier + secret)` 并生成 `commitment` 和 `nullifierHash`
 
@@ -231,6 +287,16 @@ withdraw旨在验证与给定的 `secret` 和 `nullifier` 对应的 `commitment`
 - 然后，使用 `MerkleTreeChecker` 组件，将 `commitment` 作为叶子节点，使用输入的 `root` 和提供的 `pathElements` 及 `pathIndices` 来检查 `commitment` 是否在 Merkle 树中。
 - 最后，添加额外的square signal来防止对某些输入的篡改，增强零知识证明的安全性。
 
+电路复杂度分析
+Tornado Cash的主要约束来源：
+
+1. Pedersen哈希 ：每个哈希操作约需要500个约束
+2. Merkle路径验证 ：对于20层树，约需要20 * 2 * 500 = 20,000个约束
+3. 输入处理 ：约需要1,000个约束
+4. 其他逻辑 ：约需要500个约束
+总计约22,000个约束，这决定了证明生成的计算复杂度和gas成本。
+ 多项式优化
+电路还使用了多项式优化技术，例如拉格朗日插值和FFT（快速傅里叶变换），将R1CS约束转换为更高效的QAP形式。这些优化使得Tornado Cash能够在资源受限的环境中生成证明，如浏览器或移动设备。
 
 
 总结：
